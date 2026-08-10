@@ -6,7 +6,7 @@
 //! shape of the module, because a read-only property that depends on nobody
 //! adding a write later is a promise rather than a control.
 
-use gantry::scan::{scan, RepoRead, STATIC_CEILING};
+use gantry::scan::{scan, scan_keys, RepoRead, SMALLEST_REAL_KEY, STATIC_CEILING};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -192,5 +192,75 @@ fn scanning_this_repository_stays_under_its_own_ceiling_and_reports_its_markers(
             .iter()
             .any(|m| m.check.as_deref() == Some("ci/sensor-placement-honoured")),
         "the scan did not report the [UNENFORCED] marker CLAUDE.md carries, which is the one thing CLAUDE.md says it will do"
+    );
+}
+
+/// A PEM block with a body this long, built at runtime rather than written
+/// out, because a 64-character base64 literal in this file would be a real key
+/// by the very measure under test and `gantry scan-keys` would fail on the
+/// test that proves it works.
+fn pem(kind: &str, body_chars: usize) -> String {
+    format!(
+        "-----BEGIN {kind}PRIVATE KEY-----\n{}\n-----END {kind}PRIVATE KEY-----\n",
+        "A".repeat(body_chars)
+    )
+}
+
+#[test]
+fn a_truncated_control_is_a_fixture_and_a_full_body_is_key_material() {
+    let dir = workdir("keys");
+    // What a sensor's negative control looks like: enough header to make the
+    // check fire, no key under it.
+    fs::write(dir.join("control.md"), pem("", 6)).unwrap();
+    let clean = scan_keys(&RepoRead::open(&dir).unwrap());
+    assert!(clean.ok(), "a truncated control is not key material");
+    assert_eq!(clean.fixtures.len(), 1);
+
+    // 64 base64 characters is 48 bytes, which is a PKCS8 ed25519 key exactly.
+    fs::write(dir.join("real.pem"), pem("", 64)).unwrap();
+    let dirty = scan_keys(&RepoRead::open(&dir).unwrap());
+    assert!(
+        !dirty.ok(),
+        "a body at the size of a real key must be caught"
+    );
+    assert_eq!(dirty.real.len(), 1);
+    assert_eq!(dirty.real[0].bytes, SMALLEST_REAL_KEY);
+    assert!(
+        dirty.text().contains("real.pem:1"),
+        "the finding names the file and the line: {}",
+        dirty.text()
+    );
+}
+
+#[test]
+fn a_key_pasted_into_a_sensor_control_is_caught_through_the_json_escaping() {
+    let dir = workdir("keys-json");
+    // The shape a real key arrives in if somebody pastes one where a control
+    // belongs: one JSON line, newlines as backslash-n. The scan has to see
+    // through that, and the line it names is the line in the file.
+    let sensor = format!(
+        "{{\n  \"id\": \"no-private-key\",\n  \"negative_control\": [\n    {}\n  ]\n}}\n",
+        serde_json::to_string(&pem("OPENSSH ", 400)).unwrap()
+    );
+    fs::write(dir.join("sensor.json"), sensor).unwrap();
+    let scanned = scan_keys(&RepoRead::open(&dir).unwrap());
+    assert!(
+        !scanned.ok(),
+        "a real OpenSSH key wrapped as a JSON control passed; an openssl parse cannot load one at all, which is why the size is what is measured"
+    );
+    assert_eq!(scanned.real[0].line, 4, "the line named is the file's own");
+}
+
+#[test]
+fn a_nested_repository_is_not_walked() {
+    let dir = workdir("keys-nested");
+    fs::create_dir_all(dir.join("worktree/.git")).unwrap();
+    fs::write(dir.join("worktree/control.md"), pem("RSA ", 6)).unwrap();
+    fs::write(dir.join("own.md"), pem("RSA ", 6)).unwrap();
+    let scanned = scan_keys(&RepoRead::open(&dir).unwrap());
+    assert_eq!(
+        scanned.fixtures.len(),
+        1,
+        "a checkout with its own .git is a separate repository; walking it reports the same fixture once per copy and buries the tree being scanned"
     );
 }

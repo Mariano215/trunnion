@@ -1360,3 +1360,111 @@ fn approve_binds_the_grant_to_the_call_the_decision_named() {
         String::from_utf8_lossy(&out.stdout)
     );
 }
+
+/// A harness ships the scanner exemption for its own sensor controls, and the
+/// exemption ships with the check that stands behind it.
+///
+/// The `no-private-key` sensor has to carry a PEM header per branch of its
+/// check, so the operator's first secret scan of a fresh harness reports them
+/// as leaks. The usual answer to a scanner alerting on a file whose job is to
+/// hold that content is to switch the check off, which is why the template
+/// carries the exemption and why `template validate` refuses a bundle that has
+/// the header without it.
+#[test]
+fn a_harness_ships_the_exemption_the_gitignore_and_scans_clean() {
+    let dir = workdir("template-exemption");
+    let harness = dir.join("h");
+    init_harness(&harness);
+
+    for shipped in [
+        ".gitleaks.toml",
+        ".github/secret_scanning.yml",
+        ".gitignore",
+    ] {
+        assert!(
+            harness.join(shipped).is_file(),
+            "a harness with no {shipped} alerts on its own sensor controls with nothing to point the operator at"
+        );
+    }
+    assert!(
+        fs::read_to_string(harness.join(".gitignore"))
+            .unwrap()
+            .contains("config/actor-key.seed"),
+        "the generated seed is the one piece of real key material in a harness; a committed one signs as an identity anyone can forge"
+    );
+
+    let repo = gantry::scan::RepoRead::open(&harness).unwrap();
+    let scanned = gantry::scan::scan_keys(&repo);
+    assert!(
+        scanned.ok(),
+        "a fresh harness holds no key material: {}",
+        scanned.text()
+    );
+    assert!(
+        !scanned.fixtures.is_empty(),
+        "the harness does carry sensor controls, so a scan finding none means the walk missed them and would miss a key in the same place"
+    );
+
+    // The exemption covers config/sensors. The check does not: it walks the
+    // whole tree, so widening the exemption cannot widen the hole.
+    fs::write(
+        harness.join("config/sensors/leaked.pem"),
+        format!(
+            "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n",
+            "A".repeat(64)
+        ),
+    )
+    .unwrap();
+    let after = gantry::scan::scan_keys(&gantry::scan::RepoRead::open(&harness).unwrap());
+    assert!(
+        !after.ok(),
+        "a key inside the exempted sensor directory was not caught"
+    );
+}
+
+#[test]
+fn a_template_carrying_a_key_header_without_the_exemption_is_refused() {
+    let dir = workdir("template-no-exemption");
+    let stripped = dir.join("template");
+    copy_tree(&repo_path("templates/laptop"), &stripped);
+    fs::remove_file(stripped.join(".gitleaks.toml")).unwrap();
+
+    let out = template_cmd(&["validate", stripped.to_str().unwrap()]);
+    assert!(
+        !out.status.success(),
+        "a template whose sensor carries a private key header and ships no exemption must be refused, not initialised"
+    );
+    let text = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        text.contains(".gitleaks.toml") && text.contains("scan-keys"),
+        "the refusal names the missing file and the check that replaces the rule it turns off: {text}"
+    );
+
+    // The refusal is about the header, not about the file being popular: a
+    // template with no key header in any sensor needs no exemption.
+    let plain = dir.join("plain");
+    copy_tree(&repo_path("templates/laptop"), &plain);
+    fs::remove_file(plain.join(".gitleaks.toml")).unwrap();
+    fs::remove_file(plain.join("config/sensors/no-private-key.json")).unwrap();
+    assert!(
+        template_cmd(&["validate", plain.to_str().unwrap()])
+            .status
+            .success(),
+        "a template with no private key header anywhere must not be made to carry a scanner exemption for one"
+    );
+}
+
+/// Copy a directory tree, so a test can take the tracked template apart
+/// without touching it.
+fn copy_tree(src: &Path, dest: &Path) {
+    fs::create_dir_all(dest).unwrap();
+    for entry in fs::read_dir(src).unwrap() {
+        let path = entry.unwrap().path();
+        let target = dest.join(path.file_name().unwrap());
+        if path.is_dir() {
+            copy_tree(&path, &target);
+        } else {
+            fs::copy(&path, &target).unwrap();
+        }
+    }
+}

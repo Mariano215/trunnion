@@ -1,0 +1,14 @@
+# This harness's own signing seed. gantry template init generates it at mode
+# 0600 and it is the one piece of real key material in here: whoever holds it
+# can sign events as this harness, so a signature stops proving which run wrote
+# an event. It is ignored rather than allowlisted in a scanner, because a
+# scanner exemption would say the opposite of what is true about this file.
+#
+# If it is committed anyway, the fix is not to delete the file: generate a new
+# harness key, update its public half in config/actor-keys.json and the key id
+# in profile_requirements.attestation in config/policy.json, and remove the old
+# seed from history.
+config/actor-key.seed
+
+# Ledgers are append-only records of runs, not source.
+ledger/

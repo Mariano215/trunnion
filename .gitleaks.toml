@@ -1,0 +1,36 @@
+# Secret scanning for this repository.
+#
+# This repository has to carry private key headers. The `no-private-key` sensor
+# declares one negative control per branch of its check (PKCS8, OpenSSH, RSA,
+# EC), and a control has to be the literal bytes the check greps for, or that
+# branch is dead while the sensor still reports live. `docs/proof/05-run.sh`
+# and `06-run.sh` write the same shape of document so the sensor can be seen
+# tripping, and the Rust tests build it inline. A pattern scanner reads all of
+# them as leaked keys, and there are twenty-one such blocks.
+#
+# The stock `private-key` rule is switched off, and it is replaced rather than
+# merely dropped: `gantry scan-keys .` runs on every push, reads every file in
+# the tree, and fails the gate on a PEM block whose base64 body decodes to
+# 48 bytes or more, which is a PKCS8 ed25519 key and the smallest real private
+# key there is. That is a stricter test than the pattern it replaces, because
+# it measures the body instead of matching the header, and it caught an
+# OpenSSH key in trial runs that an `openssl pkey` parse could not load at all.
+#
+# The exemption is a disabled rule and not a path allowlist on purpose. A path
+# allowlist in gitleaks applies to every rule, so exempting `src/sensor.rs` and
+# the two test files would also stop an AWS key or a provider token being found
+# in them. Only private key detection is handed over here; everything else
+# stays live everywhere.
+
+title = "gantry"
+
+[extend]
+useDefault = true
+disabledRules = ["private-key"]
+
+# config/actor-key-fixture.seed is a real 32-byte ed25519 seed, tracked on
+# purpose, registered in config/actor-keys.json with seed_published true, and
+# refused by src/runlog.rs (ActorSigner::declared) for any profile but laptop.
+# A signature under it proves which run wrote an event and never who operated
+# the machine. It is raw hex rather than PEM, so nothing above touches it, and
+# a scanner that flags it should be answered by reading that registry entry.

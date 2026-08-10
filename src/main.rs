@@ -54,6 +54,7 @@ const USAGE: &str = "usage:
   gantry graph query <ledger-dir> <graph.json> <symbol>
   gantry graph compare <graph.json> <symbol> <file>...
   gantry scan <repo-dir>                            (read-only, writes nothing)
+  gantry scan-keys <dir>                            (read-only; fails on a real private key)
   gantry score <ledger-dir> [scoring.json] [console.html]
   gantry console <ledger-dir> [127.0.0.1:port]
   gantry skill resolve <ledger-dir> <package-dir> [pubkey-hex]
@@ -435,6 +436,15 @@ fn run() -> Result<i32, Fault> {
             let repo = gantry::scan::RepoRead::open(Path::new(repo_dir))?;
             print!("{}", gantry::scan::scan(&repo).text());
             Ok(0)
+        }
+        ["scan-keys", dir] => {
+            // The check that stands behind a secret scanner exemption. Same
+            // read-only construction as scan, and the exit status is the
+            // verdict so a CI gate needs no output parsing.
+            let repo = gantry::scan::RepoRead::open(Path::new(dir))?;
+            let keys = gantry::scan::scan_keys(&repo);
+            print!("{}", keys.text());
+            Ok(if keys.ok() { 0 } else { 1 })
         }
         ["score", ledger_dir] => score(ledger_dir, "config/scoring.json", None),
         ["score", ledger_dir, rules] => score(ledger_dir, rules, None),
@@ -997,6 +1007,7 @@ fn template_validate(template_dir: &str) -> Result<Vec<std::path::PathBuf>, Faul
     files.push(pack_path);
 
     let mut sensor_count = 0usize;
+    let mut sensor_carries_key_header = false;
     let sensors_dir = dir.join("config/sensors");
     if sensors_dir.is_dir() {
         let entries = fs::read_dir(&sensors_dir).map_err(|e| {
@@ -1017,9 +1028,44 @@ fn template_validate(template_dir: &str) -> Result<Vec<std::path::PathBuf>, Faul
             if path.extension().and_then(|e| e.to_str()) == Some("json") {
                 Sensor::load(&path)?;
                 sensor_count += 1;
+                // A sensor that catches private keys has to hold one to prove
+                // it can fail. Which is why the bundle below is required.
+                if fs::read_to_string(&path)
+                    .map(|text| text.contains("PRIVATE KEY-----"))
+                    .unwrap_or(false)
+                {
+                    sensor_carries_key_header = true;
+                }
                 files.push(path);
             }
         }
+    }
+
+    // The seed `template init` generates is the one piece of real key
+    // material a harness holds, so every template ships the .gitignore that
+    // keeps it out of a commit. A harness whose sensors carry a private key
+    // header ships the scanner exemption for them too, because without it the
+    // operator's first secret scan reports four leaks in a file whose whole
+    // job is to hold them, and the usual answer to that is to switch the
+    // sensor off.
+    let mut required: Vec<&str> = vec![".gitignore"];
+    if sensor_carries_key_header {
+        required.push(".gitleaks.toml");
+        required.push(".github/secret_scanning.yml");
+    }
+    for rel in required {
+        let path = dir.join(rel);
+        if !path.is_file() {
+            return Err(Fault::new(
+                format!("{} has no {rel}", dir.display()),
+                if rel == ".gitignore" {
+                    "add a .gitignore naming config/actor-key.seed; template init generates that seed and a harness that commits it signs as an identity anyone can forge"
+                } else {
+                    "a sensor here carries a PEM private key header as a negative control, so add the scanner exemption for it and run gantry scan-keys in the harness's gate; an exemption with no check behind it is a switched-off sensor"
+                },
+            ));
+        }
+        files.push(path);
     }
 
     let keys_path = dir.join("config/skill-keys.json");
@@ -1112,6 +1158,25 @@ fn template_init(template_dir: &str, dest_dir: &str) -> Result<i32, Fault> {
         })?;
         println!("wrote {}", dest.display());
     }
+
+    // Before the seed is written, so the number below counts the fixtures the
+    // template brought and never this harness's own key. The scan is what
+    // stands behind the exemption the template just copied, and running it
+    // once here means the operator is told the count rather than discovering
+    // it from a scanner alert.
+    let repo = gantry::scan::RepoRead::open(dest_root)?;
+    let keys = gantry::scan::scan_keys(&repo);
+    if !keys.ok() {
+        return Err(Fault::new(
+            format!("the template put key material in {dest_dir}:\n{}", keys.text()),
+            "a template ships sensor controls, never keys; truncate the body in the template's sensor and init again",
+        ));
+    }
+    println!(
+        "{} PEM private key block(s) in this harness, every one a sensor control under {} bytes; .gitleaks.toml and .github/secret_scanning.yml exempt them from pattern matching and gantry scan-keys {dest_dir} is what checks them",
+        keys.fixtures.len(),
+        gantry::scan::SMALLEST_REAL_KEY
+    );
 
     let key_id = generate_actor_key(dest_dir, &policy_dest, &registry_dest, &seed_dest)?;
     println!("wrote {}", registry_dest.display());

@@ -88,6 +88,40 @@ impl RepoRead {
         names
     }
 
+    /// Every file under the root, relative to it, sorted, skipping
+    /// [`UNWALKED`]. Reads directory entries and nothing else.
+    fn walk(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut stack = vec![self.root.clone()];
+        while let Some(dir) = stack.pop() {
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(entries) => entries,
+                // An unreadable directory is one gap in the walk, never the
+                // end of it: the same rule the drift walk follows.
+                Err(_) => continue,
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if path.is_dir() {
+                    // A directory holding its own .git is a separate
+                    // repository: a submodule, or one of the worktrees an
+                    // agent session leaves under .claude. Walking into it
+                    // reports the same fixture once per checkout, which
+                    // buries the tree actually being scanned. It gets scanned
+                    // by pointing this at its own root.
+                    if !UNWALKED.contains(&name.as_str()) && !path.join(".git").exists() {
+                        stack.push(path);
+                    }
+                } else if let Ok(rel) = path.strip_prefix(&self.root) {
+                    out.push(rel.display().to_string());
+                }
+            }
+        }
+        out.sort();
+        out
+    }
+
     /// True when the path holds something: a file, or a directory with at
     /// least one file in it. An empty directory is not an artifact.
     fn present(&self, rel: &str) -> bool {
@@ -96,6 +130,35 @@ impl RepoRead {
             None => self.root.join(rel).is_file(),
         }
     }
+}
+
+/// A PKCS8 ed25519 private key is 48 bytes. Nothing real is smaller, so a PEM
+/// block whose body decodes to less than this is a fixture and one that
+/// reaches it is key material.
+pub const SMALLEST_REAL_KEY: usize = 48;
+
+/// Directories `scan-keys` does not walk. Build output and vendored packages
+/// hold other people's fixtures by the thousand, and `.git` holds every
+/// version of every file, which would report one leak per commit that touched
+/// it rather than one per file.
+const UNWALKED: &[&str] = &[".git", "target", "node_modules", ".venv", "dist"];
+
+/// One PEM private key block: where it is, and how many bytes its base64 body
+/// decodes to. The size is the whole verdict, which is why it is the only
+/// thing recorded besides the position.
+pub struct KeyBlock {
+    pub path: String,
+    pub line: usize,
+    pub bytes: usize,
+}
+
+/// Every PEM private key block under a root, split by whether it could hold a
+/// key. `real` is empty in a repository whose blocks are all sensor controls.
+pub struct KeyScan {
+    pub root: String,
+    pub fixtures: Vec<KeyBlock>,
+    pub real: Vec<KeyBlock>,
+    pub files_read: usize,
 }
 
 /// One primitive's static probe: the paths that count as an artifact, and the
@@ -406,6 +469,168 @@ fn markers(repo: &RepoRead) -> Vec<Marker> {
         }
     }
     out
+}
+
+/// True when the line carries a PEM private key header of any type. Written
+/// out rather than matched with a pattern because the only variable part is
+/// the key type, which is upper case, digits and spaces between two fixed
+/// halves.
+fn is_key_header(line: &str) -> bool {
+    let Some(after) = line.split_once("-----BEGIN ").map(|(_, a)| a) else {
+        return false;
+    };
+    let Some((kind, _)) = after.split_once("PRIVATE KEY-----") else {
+        return false;
+    };
+    kind.chars().all(|c| c.is_ascii_uppercase() || c == ' ')
+}
+
+/// True when the line is nothing but base64, once the quoting a JSON string or
+/// a Rust literal wraps it in is stripped. A block's body is the run of these
+/// under its header, and the run ends at the first line that is not one, which
+/// is the `END` marker in a terminated block and the next line of code in a
+/// fixture that has none.
+fn body_line(line: &str) -> Option<&str> {
+    let stripped = line.trim().trim_matches(['"', ',', '\\']);
+    let base64 = !stripped.is_empty()
+        && stripped
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=');
+    base64.then_some(stripped)
+}
+
+/// Bytes a base64 body of this many characters decodes to. Only the length is
+/// needed to tell a key from a fixture, so nothing is decoded and no base64
+/// dependency is taken.
+fn decoded_len(chars: usize) -> usize {
+    (chars / 4) * 3
+        + match chars % 4 {
+            2 => 1,
+            3 => 2,
+            // A remainder of 1 is not valid base64 at all.
+            _ => 0,
+        }
+}
+
+/// Every PEM private key block in a file's text, as (line in the file, decoded
+/// body size).
+///
+/// A control stored in JSON carries its newlines as the two characters
+/// backslash and n, so its block is one line in the file and four in the
+/// value; those are split while the file's own line number is kept, so the
+/// report names a line an editor can jump to.
+///
+/// The body is the run of base64 lines under the header rather than the span
+/// between `BEGIN` and `END`. Pairing the markers reads too wide: a fixture
+/// with no footer matches the `END` of an unrelated block further down and the
+/// whole span between them is measured as one key.
+fn key_blocks(text: &str) -> Vec<(usize, usize)> {
+    let mut lines: Vec<(usize, &str)> = Vec::new();
+    for (number, line) in text.lines().enumerate() {
+        for part in line.split("\\n") {
+            lines.push((number + 1, part));
+        }
+    }
+    let mut out = Vec::new();
+    for (i, (number, line)) in lines.iter().enumerate() {
+        if !is_key_header(line) {
+            continue;
+        }
+        let chars: usize = lines[i + 1..]
+            .iter()
+            .map_while(|(_, follower)| body_line(follower))
+            .map(|body| body.trim_end_matches('=').len())
+            .sum();
+        out.push((*number, decoded_len(chars)));
+    }
+    out
+}
+
+/// Walk a tree and measure every PEM private key block in it.
+///
+/// This exists because a secret scanner cannot be pointed at a harness without
+/// alerting on it. The `no-private-key` sensor's negative controls have to be
+/// the literal bytes its check greps for, one per branch of the check, or the
+/// branch is dead while the sensor still reports live. So the harness ships a
+/// scanner exemption for those paths, and an exemption is a switched-off
+/// sensor: this is what stands behind it. It reads the whole tree rather than
+/// the exempted paths, so widening the exemption cannot widen the hole.
+///
+/// Measuring the body beats matching the header, which is what the exemption
+/// turns off, and beats parsing it: an `openssl pkey` parse cannot load an
+/// OpenSSH block at all, so a real OpenSSH key would read as unparseable and
+/// pass.
+pub fn scan_keys(repo: &RepoRead) -> KeyScan {
+    let mut scan = KeyScan {
+        root: repo.root().display().to_string(),
+        fixtures: Vec::new(),
+        real: Vec::new(),
+        files_read: 0,
+    };
+    for rel in repo.walk() {
+        // A file with no readable text holds no PEM block; read_to_string
+        // returning None covers both a binary and an unreadable file.
+        let Some(text) = repo.text(&rel) else {
+            continue;
+        };
+        scan.files_read += 1;
+        if !text.contains("PRIVATE KEY") {
+            continue;
+        }
+        for (line, bytes) in key_blocks(&text) {
+            let block = KeyBlock {
+                path: rel.clone(),
+                line,
+                bytes,
+            };
+            if bytes >= SMALLEST_REAL_KEY {
+                scan.real.push(block);
+            } else {
+                scan.fixtures.push(block);
+            }
+        }
+    }
+    scan
+}
+
+impl KeyScan {
+    /// True when every block found is too small to be a key.
+    pub fn ok(&self) -> bool {
+        self.real.is_empty()
+    }
+
+    /// The report as text. A finding names the file, the line and the size,
+    /// and the fix names what to do rather than only what is wrong.
+    pub fn text(&self) -> String {
+        let mut s = String::new();
+        for block in &self.real {
+            s.push_str(&format!(
+                "{}:{}: a PEM private key block decoding to {} bytes. Fix: {SMALLEST_REAL_KEY} bytes is a PKCS8 ed25519 key and nothing real is smaller, so this is key material rather than a sensor control. Rotate it, remove it from history, and if the file has to show the shape of a key, truncate the body the way config/sensors/no-private-key.json does.\n",
+                block.path, block.line, block.bytes
+            ));
+        }
+        if self.real.is_empty() {
+            for block in &self.fixtures {
+                s.push_str(&format!(
+                    "  {}:{} decodes to {} bytes\n",
+                    block.path, block.line, block.bytes
+                ));
+            }
+            s.push_str(&format!(
+                "{} file(s) read under {}, {} PEM private key block(s), every one under {SMALLEST_REAL_KEY} bytes, so every one is a fixture\n",
+                self.files_read,
+                self.root,
+                self.fixtures.len()
+            ));
+        } else {
+            s.push_str(&format!(
+                "{} block(s) hold key material. A scanner exemption covering them (.gitleaks.toml, .github/secret_scanning.yml) exempts a path from pattern matching and exempts nothing from this check, which is why this reads every file under {} and not only the exempted ones.\n",
+                self.real.len(),
+                self.root
+            ));
+        }
+        s
+    }
 }
 
 pub fn scan(repo: &RepoRead) -> ScanReport {

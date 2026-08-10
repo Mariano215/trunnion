@@ -162,6 +162,42 @@ indistinguishable from a use and the count would be wrong by one.
   `[UNENFORCED]` `ci/sensor-placement-honoured`. This marker was carried by
   `docs/proof/05.md` and had gone missing from this file, which is the defect
   this file's own opening paragraph describes
+- **A scanner exemption is a switched-off sensor, so something stands behind
+  it.** This repository carries twenty-one PEM private key blocks and every one
+  is a fixture: the `no-private-key` sensor's negative controls have to be the
+  literal bytes its check greps for, one per branch, or the branch is dead
+  while the sensor reports live, and the slice 05 and 06 proof scripts write
+  the same document so the sensor can be seen tripping. A secret scanner reads
+  all of them as leaks, which is why `.gitleaks.toml` disables the stock
+  `private-key` rule and `.github/secret_scanning.yml` names the paths. Neither
+  stands alone. `gantry scan-keys <dir>` (`scan_keys` in `src/scan.rs`, same
+  read-only `RepoRead` the twelve-primitive scan goes through) reads every file
+  in the tree rather than only the exempted ones and fails on a block whose
+  base64 body decodes to 48 bytes or more, that being a PKCS8 ed25519 key and
+  the smallest real private key there is. Measuring the body beats matching the
+  header and beats parsing it: an `openssl pkey` parse was the first attempt
+  and could not load an OpenSSH key at all, so a real one would have read as
+  unparseable and passed. The exemption is a disabled rule and not a path
+  allowlist, because a gitleaks path allowlist applies to every rule and would
+  also stop a provider token being found in `src/sensor.rs`. The same problem
+  reaches every harness, so `templates/laptop` ships the exemption, a
+  `.gitignore` naming the generated `config/actor-key.seed`, and nothing else:
+  the check a harness runs is the binary it already has. `template validate`
+  refuses a bundle whose sensor carries a private key header and ships no
+  exemption, and refuses any bundle with no `.gitignore`, because a harness
+  that commits its own seed signs as an identity anyone can forge. — enforced
+  by `ci/run.sh` (`ci/no-real-private-key`), which plants a real ed25519 key on
+  every push as a PEM file, as a JSON negative control and in OpenSSH format,
+  inits a harness and plants one inside the exempted sensor directory, and
+  fails if any of them passes; by `tests/scan.rs`
+  (`a_truncated_control_is_a_fixture_and_a_full_body_is_key_material`,
+  `a_key_pasted_into_a_sensor_control_is_caught_through_the_json_escaping`,
+  `a_nested_repository_is_not_walked`) and `tests/broker.rs`
+  (`a_harness_ships_the_exemption_the_gitignore_and_scans_clean`,
+  `a_template_carrying_a_key_header_without_the_exemption_is_refused`).
+  `config/actor-key-fixture.seed` is exempted by nothing, being raw hex whose
+  publication is declared in `config/actor-keys.json` and enforced by
+  `ActorSigner::declared`
 - **An attestation is verified or declared unverified, never assumed.** The
   ledger verifier checks actor attestations against registered keys: an
   attestation under a registered key id is verified (a failure is a fault,

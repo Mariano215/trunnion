@@ -473,4 +473,62 @@ fi
 echo "12 primitive scores, each with a path behind it, static overall $overall (telemetry, from gantry score over a real ledger, is the number that can exceed 3)"
 echo "$scan_out" | sed -n '/UNENFORCED/,$p'
 
+echo "== every PEM private key block in this repository is a fixture (ci/no-real-private-key) =="
+# The secret scanning allowlists in .gitleaks.toml and
+# .github/secret_scanning.yml exist because the no-private-key sensor's
+# negative controls have to be the literal bytes its check greps for. An
+# allowlist is a switched-off sensor, so this is what stands behind it: it
+# reads every tracked file rather than only the exempted ones, and measures
+# the decoded body instead of matching the header.
+key_bin="$PWD/target/debug/gantry"
+if ! key_out=$("$key_bin" scan-keys .); then
+  echo "$key_out"
+  exit 1
+fi
+echo "${key_out##*$'\n'}"
+# Proved able to fail, on every push rather than once by hand. Three plants,
+# because the three read differently: a PEM file, the same key wrapped as a
+# JSON sensor control, which is the shape a real one would arrive in if
+# somebody pasted it into a negative control, and an OpenSSH key, which an
+# openssl parse cannot load at all and would have called unparseable.
+key_work=$(mktemp -d)
+mkdir -p "$key_work/plain" "$key_work/control" "$key_work/ssh"
+openssl genpkey -algorithm ed25519 -out "$key_work/plain/real.pem" 2>/dev/null
+python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.dumps({"negative_control":[open(sys.argv[1]).read()]}))' \
+  "$key_work/plain/real.pem" "$key_work/control/sensor.json"
+ssh-keygen -q -t ed25519 -N '' -f "$key_work/ssh/id" </dev/null
+for planted in plain control ssh; do
+  if "$key_bin" scan-keys "$key_work/$planted" >/dev/null; then
+    echo "a real ed25519 private key planted as $planted passed gantry scan-keys. Fix: the check is dead, so the exemptions in .gitleaks.toml and .github/secret_scanning.yml here and in templates/laptop are switched-off sensors with nothing behind them; read SMALLEST_REAL_KEY and key_blocks in src/scan.rs"
+    exit 1
+  fi
+done
+echo "a planted ed25519 key is caught as a PEM file, as a JSON sensor control and in OpenSSH format"
+
+# The same exemption ships to every harness, so the same check has to reach
+# one. A template that carries a private key header and no exemption is
+# refused before anything is written.
+key_harness=$(mktemp -d)
+"$key_bin" template init templates/laptop "$key_harness/h" >/dev/null
+for shipped in .gitleaks.toml .github/secret_scanning.yml .gitignore; do
+  if [ ! -f "$key_harness/h/$shipped" ]; then
+    echo "gantry template init produced a harness with no $shipped. Fix: template_validate in src/main.rs requires it and returns it in the copy list; a harness whose first secret scan reports four leaks in its own sensor is a harness whose sensor gets switched off"
+    exit 1
+  fi
+done
+if ! grep -q "config/actor-key.seed" "$key_harness/h/.gitignore"; then
+  echo "the harness .gitignore does not name config/actor-key.seed. Fix: that seed is the one piece of real key material in a harness, and a committed one signs as an identity anyone can forge"
+  exit 1
+fi
+if ! "$key_bin" scan-keys "$key_harness/h" >/dev/null; then
+  echo "a freshly initialised harness does not pass gantry scan-keys. Fix: read the output of gantry scan-keys on it; the template ships sensor controls and never key material"
+  exit 1
+fi
+cp "$key_work/plain/real.pem" "$key_harness/h/config/sensors/leaked.pem"
+if "$key_bin" scan-keys "$key_harness/h" >/dev/null; then
+  echo "a real key inside the harness's exempted sensor directory passed gantry scan-keys. Fix: scan_keys in src/scan.rs walks the whole tree precisely so that widening a scanner exemption cannot widen the hole"
+  exit 1
+fi
+echo "an initialised harness ships the exemption, the .gitignore for its seed, and a key planted in the exempted directory is still caught"
+
 echo "ci gate passed"
