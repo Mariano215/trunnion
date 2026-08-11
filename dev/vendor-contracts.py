@@ -65,8 +65,15 @@ def main() -> int:
         print(f"expected twelve contracts, got {len(contracts)}", file=sys.stderr)
         return 1
 
+    # The citation harness-kit's ci/consumers-cite-current-version.sh greps
+    # for, verbatim and version-interpolated, so re-vendoring updates it and a
+    # copy left behind is reported as stale by the repository it came from
+    # rather than by nobody.
     out = {
-        "_source": "harness-kit contracts.yaml, vendored by dev/vendor-contracts.py",
+        "_source": (
+            f"harness-kit contracts {doc['contracts_version']}, "
+            "vendored from contracts.yaml by gantry's dev/vendor-contracts.py"
+        ),
         "_note": (
             "Quoted by the remediation brief so a requirement reaches the reader "
             "in the words that defined it. Read by nothing that produces a score: "
