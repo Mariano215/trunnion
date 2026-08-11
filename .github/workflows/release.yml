@@ -1,0 +1,179 @@
+name: release
+
+# A tag publishes. `v0.1.0` runs the whole gate, builds the binaries and the
+# container, and attaches everything to a GitHub release whose notes are the
+# CHANGELOG section for that version.
+#
+# Three guards before anything is published, because a release is the one
+# artifact that cannot be quietly corrected afterwards: somebody has already
+# pulled it.
+#
+#   The tag matches Cargo.toml. A v0.2.0 tag on a 0.1.0 manifest ships a
+#   binary that reports a version nobody can match to a release.
+#   The CHANGELOG has a section for it. Release notes generated from commit
+#   subjects describe what changed in the repository; the CHANGELOG describes
+#   what changed for a reader, which is the distinction that file opens with.
+#   The gate passes, on both platforms, by calling ci.yml rather than
+#   restating its checks here.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # create the release and upload assets
+  packages: write   # push the image to ghcr.io
+
+jobs:
+  # The tag says what it is releasing, checked before a single artifact is
+  # built. Cheap, and it fails in ten seconds rather than after two builds.
+  claim:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          # Through the environment rather than interpolated into the script:
+          # a tag is attacker-controllable on a fork and `${{ }}` inside run:
+          # is string substitution before the shell ever sees it.
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          manifest=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "$version" != "$manifest" ]; then
+            echo "the tag is $TAG and Cargo.toml says $manifest. Fix: make them agree before tagging; a release whose binary reports a different version than its tag cannot be matched to its source by anyone holding only one of them"
+            exit 1
+          fi
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "CHANGELOG.md has no '## [$version]' section. Fix: move the [Unreleased] entries under a heading for this version; release notes taken from commit subjects say what changed in the repository, and this file says what changed for a reader"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "releasing $version"
+
+  gate:
+    needs: claim
+    uses: ./.github/workflows/ci.yml
+
+  binaries:
+    needs: [claim, gate]
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14
+            target: aarch64-apple-darwin
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+
+      # The archive carries the licence and the starting harness, because a
+      # binary alone cannot produce a working harness and the first thing
+      # anyone does with it is `template init`.
+      - name: package
+        env:
+          VERSION: ${{ needs.claim.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          name="gantry-$VERSION-$TARGET"
+          mkdir -p "dist/$name"
+          cp "target/$TARGET/release/gantry" "dist/$name/"
+          cp LICENSE README.md "dist/$name/"
+          cp -R templates "dist/$name/templates"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gantry-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  image:
+    needs: [claim, gate]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # Both tags: the version for anyone pinning, latest for anyone
+          # trying it. A digest is what a policy should pin, and the release
+          # notes say so rather than leaving `latest` to be read as stable.
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ needs.claim.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    needs: [claim, binaries, image]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # One checksum file over every archive, so a reader verifies the set
+      # rather than each file against its own neighbour.
+      - name: collect
+        env:
+          VERSION: ${{ needs.claim.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum ./*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+          # The CHANGELOG section for this version, from its heading to the
+          # next one. awk rather than sed so the heading itself is dropped and
+          # the notes start at the first line the reader wants.
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' ../CHANGELOG.md > NOTES.md
+          {
+            echo
+            echo "## Container"
+            echo
+            echo '```'
+            echo "docker pull ghcr.io/${GITHUB_REPOSITORY}:${VERSION}"
+            echo '```'
+            echo
+            echo "Isolation inside a plain unprivileged \`docker run\` is Landlock ABI v4, no flags and no added capabilities. On a kernel that does not provide it, \`gantry\` records the backend as \`none\` and the isolation claim is honestly unmet rather than quietly assumed."
+            echo
+            echo "## Verifying a download"
+            echo
+            echo '```'
+            echo "sha256sum -c SHA256SUMS"
+            echo '```'
+          } >> NOTES.md
+
+      - name: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file artifacts/NOTES.md \
+            artifacts/*.tar.gz artifacts/SHA256SUMS

@@ -80,6 +80,54 @@ New to the vocabulary? `docs/GLOSSARY.md` defines every term here, grouped by
 what you are trying to work out, and says plainly which ones are declared but
 not yet running.
 
+## Getting it
+
+Three ways, and none of them needs an account.
+
+**A container.** Nothing to install but Docker. The isolation is real in here:
+a plain unprivileged `docker run` with no flags gets Landlock, because the
+backend was chosen for exactly that property.
+
+```
+docker pull ghcr.io/mariano215/gantry:latest
+docker run --rm -v "$PWD:/harness" ghcr.io/mariano215/gantry \
+  template init /usr/share/gantry/templates/laptop /harness/myharness
+```
+
+**A binary.** Every release carries a macOS (Apple silicon) and a Linux
+(x86_64) archive with a checksum file. Download, check it, put `gantry` on your
+path.
+
+```
+sha256sum -c SHA256SUMS
+```
+
+**From source.** A Rust toolchain and one command. This is what the rest of
+this README uses, because it also gets you the repository the examples run
+against.
+
+```
+cargo build
+```
+
+## What the commands do, in plain English
+
+`gantry` with no arguments lists every form. In ordinary words:
+
+| Command | What it does |
+|---|---|
+| `gantry template init <template> <dir>` | Creates a working harness in an empty directory: a policy, scoring rules, sensors, and a signing key generated for that install alone. This is the first thing to run. |
+| `gantry broker call <ledger-dir> <tool> <target>` | Asks to run one tool call. The policy decides, the answer and its reason go on the log, and if it is allowed the command runs inside a sandbox. This is the thing your agent calls instead of running commands itself. |
+| `gantry approve <ledger-dir> <request-id> <approver> [approve\|deny]` | Answers a call the policy put on hold. A named human, on the record. Add `deny` as a last argument to refuse, which is also recorded: "nobody looked" and "somebody said no" are different states. |
+| `gantry ledger verify <ledger-dir>` | Recomputes the whole log from scratch and reports any entry that does not check out. Run it against a log someone hands you; it needs nothing but the directory. |
+| `gantry ledger anchor <ledger-dir> <anchor-file>` | Writes a copy of the current signed head somewhere outside the log. This is what catches a writer who rewrites their own history, which verification alone cannot. |
+| `gantry score <ledger-dir> [scoring.json]` | Scores the twelve primitives from what the log says actually happened. It reads events, never configuration, so it cannot be talked into a better number. |
+| `gantry scan <repo-dir>` | Looks at a repository on disk and scores it without running anything. Caps at 3, because a file can say a check is wired and only a run says it fired. Writes nothing to what it reads. |
+| `gantry project add\|list\|scan\|remediate <...>` | Manages a set of repositories, so one install answers for many projects. `remediate` turns each gap into a brief you can paste into an agent, in the contracts' own words. |
+| `gantry console [ledger-dir]` | Serves the read-only web console on loopback. With a ledger it shows that log; with no argument it shows every registered project. It writes nothing, ever. |
+| `gantry drift <ledger-dir> <policy.json>` | Checks that what the policy claims about the machine is still true of the machine, and reports every claim it cannot check rather than passing it quietly. |
+| `gantry sensor live <sensor.json>...` | Runs every sensor against content it must reject. A sensor that has quietly stopped working is reported broken rather than clean. |
+
 ## The first hour
 
 What follows is one sitting, start to finish: build it, point it at a tool
@@ -536,7 +584,8 @@ no anchoring view. Live update is a poll, not a stream.
   Every predicate is a statement about ledger events, so it cannot be talked
   into a better number.
 - **Console and its API** (`src/console.rs`, `assets/`): eight read-only
-  routes over the ledger and six views on top of them, served by the same
+  routes over the ledger, three more over the workspace, and nine views on top
+  of them, served by the same
   binary from the same process, standard library only and no new dependency.
 
 `gantry` with no arguments lists every subcommand.
@@ -665,6 +714,6 @@ review looks for. Copyright Mariano215.
 ## Status
 
 Pre-1.0. Every slice built so far carries a proof document produced by running
-it, numbered 00 through 13 in `docs/proof/`; the API is not yet stable. The
+it, numbered 00 through 23 in `docs/proof/`; the API is not yet stable. The
 name collides with a long-running Joomla template framework, so the published
 package name may differ.
