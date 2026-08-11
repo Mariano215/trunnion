@@ -19,6 +19,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Called by release.yml, so a tag cannot publish anything the gate has not
+  # passed. The alternative is a release workflow with its own copy of the
+  # checks, which is two gates that drift.
+  workflow_call:
   schedule:
     # Weekly liveness sweep: a sensor that rots between pushes is caught by
     # the schedule, not by the next unlucky verdict (ci/sensor-liveness-schedule).
