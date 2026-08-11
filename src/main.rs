@@ -60,6 +60,7 @@ const USAGE: &str = "usage:
   gantry project list
   gantry project remove <id>
   gantry project scan [<id>]                        (every project when the id is omitted)
+  gantry project remediate <id> [--primitive <n>]   (paste-ready briefs, worst first)
   gantry score <ledger-dir> [scoring.json] [console.html]
   gantry console <ledger-dir> [127.0.0.1:port]
   gantry skill resolve <ledger-dir> <package-dir> [pubkey-hex]
@@ -456,6 +457,7 @@ fn run() -> Result<i32, Fault> {
         ["project", "remove", id] => project_remove(id),
         ["project", "scan"] => project_scan(None),
         ["project", "scan", id] => project_scan(Some(id)),
+        ["project", "remediate", id, flags @ ..] => project_remediate(id, flags),
         ["score", ledger_dir] => score(ledger_dir, "config/scoring.json", None),
         ["score", ledger_dir, rules] => score(ledger_dir, rules, None),
         ["score", ledger_dir, rules, console] => score(ledger_dir, rules, Some(console)),
@@ -2030,6 +2032,62 @@ fn project_scan(id: Option<&str>) -> Result<i32, Fault> {
     }
     ws.save(&home)?;
     Ok(if failed == 0 { 0 } else { 1 })
+}
+
+/// Print the paste-ready briefs for a registered project's gaps.
+///
+/// The scan runs here rather than reading a stored result: a brief quoting
+/// evidence from a scan that ran last week describes a tree that has since
+/// moved, and a remediation document is read as current by whoever is handed
+/// it. `--primitive` narrows to one, for the reader who has already picked.
+fn project_remediate(id: &str, flags: &[&str]) -> Result<i32, Fault> {
+    let mut only: Option<u8> = None;
+    let mut i = 0;
+    while i < flags.len() {
+        match flags[i] {
+            "--primitive" => {
+                let raw = flags
+                    .get(i + 1)
+                    .copied()
+                    .ok_or_else(|| usage_fault("--primitive needs a number from 1 to 12"))?;
+                let n: u8 = raw.parse().map_err(|_| {
+                    usage_fault(format!("{raw} is not a primitive number; pass 1 to 12"))
+                })?;
+                if !(1..=12).contains(&n) {
+                    return Err(usage_fault(format!(
+                        "there are twelve primitives, so {n} is not one of them"
+                    )));
+                }
+                only = Some(n);
+            }
+            other => {
+                return Err(usage_fault(format!(
+                    "{other} is not an option of gantry project remediate"
+                )))
+            }
+        }
+        i += 2;
+    }
+
+    let home = workspace::home()?;
+    let ws = Workspace::load(&home)?;
+    let project = ws.find(id).cloned().ok_or_else(|| {
+        Fault::new(
+            format!("the workspace has no project called {id}"),
+            "run gantry project list to see the registered ids",
+        )
+    })?;
+    let dir = ws.checkout(&home, &project);
+    let repo = gantry::scan::RepoRead::open(&dir)?;
+    let mut report = gantry::scan::scan(&repo);
+    if let Some(n) = only {
+        report.findings.retain(|f| f.primitive == n);
+    }
+    print!(
+        "{}",
+        gantry::remediate::document(&report, project.risk, &project.id)?
+    );
+    Ok(0)
 }
 
 fn to_json<T: serde::Serialize>(value: &T) -> Result<String, Fault> {

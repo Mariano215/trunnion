@@ -655,8 +655,14 @@ pub fn scan(repo: &RepoRead) -> ScanReport {
             (
                 0,
                 format!("looked in {}: found nothing", probe.artifacts.join(", ")),
+                // The gap states the shortfall and names no level. Which level
+                // it earns is the reader's question and they are not all asking
+                // the same one: the scan's next reachable state is 2, and the
+                // remediation queue aims at 3, because 3 is the first level
+                // anything is prescribed for. A number quoted here would be
+                // right for one of them and wrong in the other's output.
                 format!(
-                    "to reach 2, one of {} has to exist; the scan looked in those paths and nowhere else",
+                    "one of {} has to exist; the scan looked in those paths and nowhere else",
                     probe.artifacts.join(", ")
                 ),
             )
@@ -686,7 +692,7 @@ pub fn scan(repo: &RepoRead) -> ScanReport {
                     // found. Saying both would describe a test that is not the
                     // one this number came from.
                     format!(
-                        "to reach 3, one of {} has to mention this layer: its text has to contain any of {}. The artifact is on disk and no check file does, so nothing fails when someone ignores it",
+                        "one of {} has to mention this layer: its text has to contain any of {}. The artifact is on disk and no check file does, so nothing fails when someone ignores it",
                         CHECK_FILES.join(", "),
                         probe.markers.join(", ")
                     ),

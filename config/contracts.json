@@ -1,0 +1,224 @@
+{
+  "_source": "harness-kit contracts.yaml, vendored by dev/vendor-contracts.py",
+  "_note": "Quoted by the remediation brief so a requirement reaches the reader in the words that defined it. Read by nothing that produces a score: harness-kit refuses to infer a level and gantry refuses to prescribe, and tests/invariants.rs is what keeps that true.",
+  "contracts_version": "0.2.0",
+  "spec_version": "0.2.0-draft",
+  "contracts": [
+    {
+      "key": "instruction",
+      "id": "01",
+      "targets": {
+        "3": {
+          "requirement": "The agent's instructions live in a file in the repository, not in a dashboard, a notebook cell, or a string literal assembled at runtime. The file states who the agent is, the work it does, the constraints it operates under, and where its state and tools live. It is loaded from disk rather than pasted, so the version that ran is the version that is committed. Every rule in it that nothing checks is marked, on the rule's own line, so the file is honest about which of its contents are enforcement and which are hope.",
+          "artifact": "One instruction file at a conventional path the tooling already reads: AGENTS.md, CLAUDE.md, .cursorrules, or a system-prompt module imported by the call site. Committed, not gitignored.",
+          "check": "Change one sentence in the instruction file, do not restart anything you would not restart in production, and run the agent. If the change did not reach the model, the file is documentation and the real instruction is somewhere else. Find that somewhere else and score it."
+        },
+        "4": {
+          "requirement": "Instruction changes pass the same review gate as code: a pull request with a named reviewer, or an owners rule on the instruction path. A check that runs on every change fails when a rule in the instruction file claims enforcement by a check id that does not resolve to something runnable, and when an unmarked rule has no enforcement at all. The instruction the model receives is hashed and the hash is recorded on the run, so an incident review can name which version was in force.",
+          "artifact": "An owners rule or branch protection covering the instruction path, plus a check that resolves the enforcement claims in the file.",
+          "check": "Add a rule to the instruction file claiming it is enforced by a check id that does not exist. The build must go red and name the rule's line."
+        }
+      },
+      "anti_pattern": "A long, well-written instruction file that nobody has edited since it was written, alongside a prompt string in the application that actually overrides half of it. Two instructions, one reviewed.",
+      "cost": "Cheap everywhere. This is the least expensive primitive to lift to 3 and the reason it sits last in the remediation order: the spec's ablation finding is that gains localize away from the system prompt."
+    },
+    {
+      "key": "context_delivery",
+      "id": "02",
+      "targets": {
+        "3": {
+          "requirement": "For each task type the agent handles, the material that must reach the model is named in advance and assembled by code, not by the model asking for it and not by a human remembering to paste it. The assembly function is one place. When a named input cannot be found, the run fails or degrades loudly with the missing input named; it does not proceed on a silently shorter prompt, because a model given nine of ten inputs answers with the same confidence as one given ten.",
+          "artifact": "A context assembly function or module, and a per-task-type declaration of required inputs. A dict of task type to input list satisfies this.",
+          "check": "Remove one required input at its source, a file, a ticket field, a log endpoint, and run the task. Either the run names the missing input or the system has no delivery contract and the model is improvising over a gap it cannot see."
+        },
+        "4": {
+          "requirement": "A check that runs on every change fails when a task type is handled without a declared input set, and a runtime assertion fails the run when a declared input is absent or empty. Delivery is recorded: the run's observability record names which inputs were assembled and their sizes, so a bad answer can be traced to a thin prompt rather than blamed on the model.",
+          "artifact": "The assertion in the assembly path, a test covering the missing-input branch, and the delivery record on the run event.",
+          "check": "Add a task type with no input declaration. The build must go red and name the task type. Separately, empty one declared input at runtime and confirm the run fails with that input named."
+        }
+      },
+      "anti_pattern": "A retrieval library in the dependency list and a prompt that still concatenates whatever the caller happened to pass. The dependency is evidence of intent, never of delivery.",
+      "cost": "Cheap where a task type already exists as an enum or a route. Dear in a single free-form chat endpoint, because the task types have to be discovered before their inputs can be declared."
+    },
+    {
+      "key": "context_management",
+      "id": "03",
+      "targets": {
+        "3": {
+          "requirement": "The window has a stated budget and a stated selection policy, and both live in the repository rather than in the size of whatever was available. The policy says what is included first, what is summarized, what is dropped, and when material expires. Selection happens before the call, deterministically enough that the same task twice assembles comparably. Material carried across turns has an explicit lifetime; a summary of a file that has since changed is worse than no summary, because it fails confidently.",
+          "artifact": "A budget constant or config value, plus the selection or compaction function. A staleness rule on anything cached or summarized.",
+          "check": "Feed the agent a corpus several times the window. Read the prompt it actually sent. If it was truncated by the provider or by a slice at the end of a string, there is no selection policy, only an accident that has not hurt yet."
+        },
+        "4": {
+          "requirement": "Window accounting runs on every call: the assembled prompt is measured against the budget before it is sent, and exceeding it is an error the system handles rather than a truncation the provider performs. Cached or summarized material carries the hash or mtime of its source and is invalidated when that changes. Token counts per call are recorded, so a growing prompt is visible before it becomes a truncation.",
+          "artifact": "The pre-send budget assertion, the invalidation check on cached material, and per-call token counts in the run record.",
+          "check": "Modify a source file whose summary is cached and run the task. The stale summary must not reach the model. Separately, force an assembly over budget and confirm the system raises rather than the provider truncating."
+        }
+      },
+      "anti_pattern": "A vector store standing in for a selection policy. Retrieval decides what is available; it does not decide what enters this call, in what order, against what budget.",
+      "cost": "Cheap where prompts are assembled in one function. Dear where context accretes across a long conversation object, because the budget has to be enforced against a structure that was designed to grow."
+    },
+    {
+      "key": "tool_interface",
+      "id": "04",
+      "targets": {
+        "3": {
+          "requirement": "Every action the agent can take outside its own process is declared in one enumerable registry. Each entry states a name, one line on when to use it, a typed input schema that rejects fields it does not list, an effect class of read, write-local, write-shared or irreversible, and whether the effect is reversible and by what. The registry is the only source of the tool list handed to the model: a tool constructed at a call site is a violation. Tool results re-enter the next prompt through one boundary that labels them as data returned by a tool, never as instruction.",
+          "artifact": "The registry, in whatever form the stack already uses: a module of schema objects, an MCP server manifest, an OpenAPI document, a JSON tool array. One place, iterable at runtime.",
+          "check": "Print the tool list the model receives on a real run and compare it to the registry. Any tool in one and not the other, any entry with no effect class, or any second code path that appends a tool, is the violation."
+        },
+        "4": {
+          "requirement": "A check that runs on every change fails when a tool reaches the model without a registry entry, when a schema admits unlisted fields, when an entry declares no effect class, or when a tool whose effect class is irreversible is reachable without passing the approval path. The check runs over the registry, not over the vendor SDK, so it survives a provider change.",
+          "artifact": "A test or lint step named in the CI config or task runner.",
+          "check": "Add a tool with an open schema. The build must go red and the message must name the tool and the fix."
+        }
+      },
+      "anti_pattern": "A schema library is a declared dependency and the tools are still typed as free-form strings, or the registry is real and one debug path appends \"run_shell\" beside it.",
+      "cost": "Cheap where a schema library is already in the dependency list. Dear where tools are dispatched by string name through a switch, because the registry has to be invented before it can be checked."
+    },
+    {
+      "key": "execution_environment",
+      "id": "05",
+      "targets": {
+        "3": {
+          "requirement": "What the agent's execution can reach is written down and is narrower than what the developer can reach. The declaration names the filesystem scope, the network destinations, and every credential the process holds. Credentials reach the execution context through the environment or a secret manager, never through the repository and never through a prompt or a tool argument, so a credential cannot be echoed by a model that was asked nicely. Anything the agent may not do is refused by something, and the declaration names what refuses it.",
+          "artifact": "A container definition, sandbox profile, permission file or runner configuration, plus the credential path. Committed.",
+          "check": "From inside the agent's execution context, read a file the declaration excludes and open a connection to a host it excludes. Both must fail. If either succeeds, the declaration is a description of intent and the real environment is the developer's machine."
+        },
+        "4": {
+          "requirement": "The boundary is enforced by the runtime rather than by the agent's cooperation: a sandbox, a container with a dropped capability set, a restricted service account, or a broker that substitutes secrets at the boundary so the agent holds handles and never values. A check that runs on every change fails when a credential appears in tracked files and when the declared egress set widens without review. Denials are recorded with the rule that denied them.",
+          "artifact": "The enforcing runtime configuration, a secret scanner in CI, and denial events in the run record.",
+          "check": "Commit a file containing a private key header. The build must go red and name the file. Separately, have the agent attempt a denied egress and confirm the denial is recorded with the rule that produced it."
+        }
+      },
+      "anti_pattern": "An allow list in a settings file that the runtime never consults, running alongside a session started in a mode that bypasses it. The list is real, the bypass is real, and nothing reports the difference.",
+      "cost": "Cheap where the workload already runs in a container or CI runner. Dear on a developer laptop with ambient credentials, which is also where it matters most, because the agent inherits everything its operator has."
+    },
+    {
+      "key": "durable_state",
+      "id": "06",
+      "targets": {
+        "3": {
+          "requirement": "Run state lives in a named location outside the model's context, is readable without running the program, and identifies the goal, the steps completed, the step in flight, and what remains. One documented entry point resumes a run from that state alone. The location is named in the instruction file, so a human taking over a stuck run finds it without reading the source.",
+          "artifact": "A state file, directory, table or key prefix, plus the resume entry point. Format is free; readability without the program is not.",
+          "check": "Kill a run after at least one state-mutating step. Open the state by hand and answer, without the source, what it was doing and what is left. If you cannot, the state is a log."
+        },
+        "4": {
+          "requirement": "An automated test kills a run after at least one state-mutating step and resumes it from persisted state alone, asserting the final result matches an uninterrupted run. It runs in CI. Loss of resumability is a build failure rather than a discovery in production.",
+          "artifact": "A kill-and-resume test in the suite, named in the CI config.",
+          "check": "Delete one field the resume path reads. The test must fail, and its message must name the field."
+        }
+      },
+      "anti_pattern": "A state directory that is written on every step and read by nothing. Writing state is not durability; the resume path is the primitive.",
+      "cost": "Cheap for a step-shaped workload. Dear where the loop's state is the conversation array itself, because resumability means extracting a state model that does not exist yet."
+    },
+    {
+      "key": "orchestration",
+      "id": "07",
+      "targets": {
+        "3": {
+          "requirement": "The lifecycle of a run is written down as ordered steps with a stated entry and exit, and the loop has a cap: a maximum iteration count, a maximum spend, or a maximum wall time, whichever the workload makes meaningful. Reaching the cap is a defined outcome that a caller can handle, not a hang. Retries state what is retried, how many times, and what is never retried because it is not idempotent. Every action whose effect class is irreversible passes an approval step before it runs, and who or what approves is named.",
+          "artifact": "The lifecycle definition, the loop cap constant, the retry policy, and the approval path.",
+          "check": "Give the agent a task it cannot complete. It must stop at a stated boundary and report why. A run that spins, or that stops only because the provider rate limited it, has no orchestration; it has a while loop."
+        },
+        "4": {
+          "requirement": "The approval step blocks: the irreversible action cannot execute without the recorded approval, enforced in the code path rather than requested in the prompt. A test asserts that an unapproved irreversible action fails, and it runs in CI. Cap exhaustion and every retry are recorded on the run with the reason, so a run that finished at its cap is distinguishable from a run that finished its work.",
+          "artifact": "The blocking approval check, a test that an unapproved action is refused, and the cap and retry events in the run record.",
+          "check": "Invoke an irreversible action with the approval record removed. It must be refused, and the refusal must name the missing approval. If the action proceeds and merely logs a warning, the gate is a guide."
+        }
+      },
+      "anti_pattern": "A prompt that instructs the model to ask before destructive operations, with nothing in the code path that would notice if it did not. The model complies most of the time, which is what makes this gap survive so long.",
+      "cost": "Cheap where the work is already a pipeline of named steps. Dear in a single agent loop with tool calls dispatched inline, because the approval seam has to be cut before it can be closed."
+    },
+    {
+      "key": "sub_agents",
+      "id": "08",
+      "targets": {
+        "3": {
+          "requirement": "Each delegated role is defined in an artifact stating its scope, the context it receives, the tools it may call, and the shape of what it returns. The split between roles matches a split in the work rather than a wish for parallelism. The parent states what it does with a result it considers unusable: rejecting, retrying, or escalating. A child's output re-enters the parent's context as data, never as instruction the parent then follows.",
+          "artifact": "Role definition files or a role registry, plus the parent's handling of a returned result.",
+          "check": "Have a sub-agent return a plainly wrong result in the correct shape. If the parent incorporates it without noticing, the delegation has a contract on structure and none on substance, and the inconsistency is invisible in the final output."
+        },
+        "4": {
+          "requirement": "The return shape is validated mechanically and a failed validation is handled rather than logged. Each role's tool subset is enforced at the point of delegation, so a child cannot call a tool its role does not declare. A check that runs on every change fails when a delegation targets an undefined role or when a role declares a tool absent from the registry in primitive 04.",
+          "artifact": "The return validator, the per-role tool restriction, and the check over role definitions.",
+          "check": "Delegate to a role name that does not exist, and separately give a role a tool outside the registry. The build must go red on both and name the role."
+        }
+      },
+      "anti_pattern": "Five agents with distinct names, one shared prompt template, and the same unrestricted tool list. A swarm with no consistency between members is worse than one agent, because the inconsistency does not show in the output.",
+      "cost": "Cheap where the platform has first-class sub-agents. Dear where delegation is a second call to the same function with a different prompt, because there is no seam at which to restrict tools."
+    },
+    {
+      "key": "skills",
+      "id": "09",
+      "targets": {
+        "3": {
+          "requirement": "Each repeated procedure is captured in one file that states when to use it, what inputs it needs, the steps in order, and which tools it touches. The trigger condition is stated in the skill itself, so the agent can decide to load it rather than waiting to be told; a procedure the agent has to be told to load is an instruction, not a skill. Skills are discovered from a directory rather than listed by hand, so adding one does not require editing a registry someone will forget.",
+          "artifact": "A skills directory with one file per procedure, each carrying a trigger line, and the loader that discovers them.",
+          "check": "Give the agent a task the skill exists for, without naming the skill. If it improvises the procedure from scratch, the trigger is not doing its job and the file is a runbook nobody opens."
+        },
+        "4": {
+          "requirement": "A check that runs on every change fails when a skill references a file, command or tool that no longer resolves, and when a skill file is missing a trigger. Skill invocations are recorded on the run, so a procedure that is never triggered is visible as an unused file rather than assumed to be working.",
+          "artifact": "The reference resolver check, and skill invocation events in the run record.",
+          "check": "Delete a file a skill references. The build must go red and name both the skill and the missing path."
+        }
+      },
+      "anti_pattern": "A skills directory that grew for six months and was never pruned, in which a third of the files reference paths that moved. The agent loads one, fails to find the step, and improvises, which is the outcome the skill existed to prevent.",
+      "cost": "Cheap on any platform with a skills or command convention. Dear where procedures live in a wiki, because capture means rewriting for an agent reader rather than a human one."
+    },
+    {
+      "key": "verification",
+      "id": "10",
+      "targets": {
+        "3": {
+          "requirement": "Before the agent's output is accepted, something the model does not control examines it. What that check is, and what it is checking for, is stated per output type. The check is a program, a test, a build, a schema validation or a named human, never the model's own assessment of its work and never the confidence of its final sentence. The result of the check is recorded alongside the output, so accepted and unchecked are distinguishable after the fact.",
+          "artifact": "The check, and the per-output-type statement of which check applies.",
+          "check": "Make the agent produce output you know to be wrong. Follow it to the point of acceptance. If it arrives, the verification runs beside the pipeline rather than across it."
+        },
+        "4": {
+          "requirement": "The check blocks. A red result stops the output from reaching a user, a client or a downstream system, enforced by the code path rather than by a person noticing. The check has been observed failing at least once against a deliberately broken input, and that observation is recorded, because a check that has never failed has not been shown to be capable of failing. It runs on every change, not on a schedule.",
+          "artifact": "The blocking integration, its CI line, and one recorded negative control run.",
+          "check": "Break the thing the check checks and attempt to ship. The output must not reach its destination and the failure message must name the fix, not merely report a failure, because an agent reads that message and acts on it."
+        }
+      },
+      "anti_pattern": "A green test suite covering the code around the agent and nothing covering what the agent produced. The suite is real and the output is unverified, and the dashboard says the same word for both.",
+      "cost": "Cheap where output is structured and has a schema. Dear where output is prose whose correctness is a judgment, which is where an inferential check at a checkpoint earns its cost and a computational one cannot."
+    },
+    {
+      "key": "observability",
+      "id": "11",
+      "targets": {
+        "3": {
+          "requirement": "Every model call and every tool call emits one record from a single chokepoint in the code. Each record carries a run id, a monotonic sequence number within the run, a timestamp, the identity the call ran as, the event kind, a hash of the prompt or the tool arguments, the outcome, and token counts wherever the provider returns them. Records land somewhere that outlives the process. A code path that reaches a provider SDK, or executes a tool, without passing that chokepoint is a defect in this primitive and not a shortcut.",
+          "artifact": "The chokepoint module or middleware, and the sink. One append-only JSONL file satisfies this; so does OpenTelemetry; so does a vendor tracer. The field list is the requirement, the backend is not.",
+          "check": "Take a failure from last week and reconstruct, from records alone, what the model saw and which tool ran first. If the reconstruction needs the engineer who wrote it, the record is not one."
+        },
+        "4": {
+          "requirement": "A check that runs on every change fails when a provider SDK or a tool executor is reached from outside the chokepoint. Retention and redaction are stated in a reviewable artifact: how long records are kept, and which fields are hashed or dropped rather than stored.",
+          "artifact": "An import lint, dependency rule or grep-based test named in CI, plus the retention statement.",
+          "check": "Import the provider SDK in a module that is not the chokepoint. The build must go red and name the module."
+        }
+      },
+      "anti_pattern": "Infrastructure monitoring presented as agent observability. Service uptime, request counts and CPU say nothing about what the model saw, which tool ran, or who approved it.",
+      "cost": "Cheap where calls already pass a client wrapper. Dear where each module constructs its own client, because the transform is a refactor to one chokepoint before a single line of telemetry is written."
+    },
+    {
+      "key": "governance",
+      "id": "12",
+      "targets": {
+        "3": {
+          "requirement": "The agent acts as a named identity that is not a person's personal account, and what that identity is authorized to do is written in a reviewable artifact that someone owns. The artifact states the scope, the actions requiring approval, who may approve them, and how long the approval record is kept. Approvals are recorded with the approver, the action and the time. If a regulatory or contractual regime applies, the mapping from these records to that regime is written down rather than assembled during an audit.",
+          "artifact": "The authorization declaration, the identity the agent runs as, and the approval record store.",
+          "check": "Ask what the agent is allowed to do and require the answer to be a file. If the answer is a person explaining, the authority is real and undeclared, which is the common gap: a permission mode or an API scope living in someone's local configuration."
+        },
+        "4": {
+          "requirement": "A drift check compares the running system against the declaration and reports every difference: the permission mode actually in force, the scopes the credential actually holds, the policy version actually loaded. Divergence is recorded on the run rather than discovered during review. The approval record is tamper-evident, by signature or hash chain, so its integrity does not rest on the storage being trusted.",
+          "artifact": "The drift check, the divergence field on run records, and the integrity mechanism on the approval store.",
+          "check": "Run the agent under a permission mode wider than the declaration. The divergence must appear in the run record without anyone looking for it. Separately, alter one stored approval and confirm the integrity check names the altered entry."
+        }
+      },
+      "anti_pattern": "A settings file declaring allow, ask and deny lists, and a session started in a mode that bypasses all three, with nothing reporting the difference. The declaration is honest, the run is not, and only the drift check knows.",
+      "cost": "Cheap where the platform already issues scoped service identities. Dear on a workstation where the agent inherits a human's credentials, because declaring the authority means first separating it from the operator."
+    }
+  ]
+}

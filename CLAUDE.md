@@ -530,6 +530,45 @@ indistinguishable from a use and the count would be wrong by one.
   by breaking the thing it names; four of them did not, and `docs/proof/21.md`
   records what they were and what replaced them
 
+- **The contracts are quoted, never scored against.** `gantry project
+  remediate` prints the requirement, the artifact and the acceptance check for
+  a gap in harness-kit's own words, because a paraphrased requirement is how a
+  check ends up testing something adjacent. Those words are vendored into
+  `config/contracts.json` by `dev/vendor-contracts.py` and compiled in, since a
+  brief has to print on a machine that has never seen harness-kit.
+  `contracts.yaml` says gantry does not read it and must not, and the reason is
+  the split the two projects are built on: harness-kit refuses to infer a level
+  and gantry refuses to prescribe one. That survives here only while nothing
+  producing a number reads the contracts, which is one import away and
+  invisible in review, so it is a check rather than an intention: `src/scan.rs`
+  and `src/scorer.rs` may not name `remediate`, `contracts.json` or
+  `CONTRACTS_JSON`, and the vendored file is read in exactly one place. The
+  queue targets 3 and then 4 and nothing else, because levels 0 to 2 describe
+  not having done the thing and level 5 is emergent; a brief aimed anywhere
+  else would be an instruction with no contract behind it, which is the shape
+  of advice this model exists to replace. The ordering is a port of
+  `remediation_rank` in harness-kit's `report/render.py`, and two
+  implementations of one rule drift, so the expected order for all three risk
+  levels is that Python's actual output, captured by running it. — enforced by
+  `tests/invariants.rs`
+  (`nothing_that_produces_a_score_reads_the_vendored_contracts`) and
+  `tests/remediate.rs` (`the_order_matches_the_python_it_was_ported_from`,
+  `the_queue_is_the_ranked_order_and_the_target_is_the_next_prescribed_level`,
+  `nothing_is_prescribed_above_the_level_the_contracts_carry`)
+- **A repository address is not argv.** A git URL is passed to `git clone`
+  after `--` and refused outright if it begins with a dash. `is_url` asks only
+  for a transport and `--upload-pack=ssh://x` carries one, so without both the
+  option would be read as the option it resembles and would run the command it
+  names. The case worth defending is not an operator attacking their own
+  machine, it is the ordinary way an address is obtained: pasted out of an
+  issue, a README or a message. A project id is checked the same way and for
+  the same reason, being a path segment `cache/<id>` is built from. — enforced
+  by `src/workspace.rs` (`clone`, `check_id`) and `tests/workspace.rs`
+  (`a_url_that_is_really_a_git_option_is_refused_rather_than_executed`,
+  `an_id_that_would_leave_the_cache_is_refused`), the first proved able to fail
+  by removing both halves of the guard and watching git absorb the option and
+  read the destination as the repository
+
 ## Code standards
 
 - Rust for the control plane. One static binary. The UI is static assets that

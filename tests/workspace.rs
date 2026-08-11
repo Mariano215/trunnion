@@ -350,3 +350,35 @@ fn a_partial_clone_is_discarded_rather_than_left_to_be_scanned() {
     );
     assert!(cache.join("CLAUDE.md").is_file(), "the real tree is there");
 }
+
+/// A URL is a repository address, not argv.
+///
+/// `is_url` asks only for a transport, and `--upload-pack=ssh://x` carries
+/// one. Passed positionally, git reads it as the option it resembles and runs
+/// the command it names. The case that matters is not an operator attacking
+/// their own machine, it is the ordinary way a repository address is obtained:
+/// pasted out of an issue, a README or a message.
+#[test]
+fn a_url_that_is_really_a_git_option_is_refused_rather_than_executed() {
+    let root = workdir("argv");
+    let home = root.join("home");
+    let mut ws = Workspace::load(&home).unwrap();
+
+    let canary = root.join("executed");
+    let hostile = format!("--upload-pack=touch {}; ssh://x/y", canary.display());
+    let fault = ws
+        .add(&home, &hostile, Some("hostile"), Risk::Internal)
+        .unwrap_err();
+    assert!(
+        fault.cause.contains("dash"),
+        "the fault says why it is not a URL: {fault}"
+    );
+    assert!(
+        !canary.exists(),
+        "an option smuggled in as a URL reached git and ran"
+    );
+    assert!(
+        ws.find("hostile").is_none(),
+        "a refused clone registers nothing"
+    );
+}

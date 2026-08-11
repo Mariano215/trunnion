@@ -77,3 +77,50 @@ fn the_trace_view_derives_no_edge_from_an_event_kind_alone() {
         "the legend prints the inferred count, which is zero by construction and printed anyway"
     );
 }
+
+/// Prescription and scoring stay apart, and not by intention.
+///
+/// `contracts.yaml` says gantry does not read it and must not. The reason is
+/// the split the two projects are built on: harness-kit refuses to infer a
+/// level, gantry refuses to prescribe one. gantry vendors the contracts anyway,
+/// because a remediation brief has to quote the requirement in the words that
+/// defined it, and the rule survives only while nothing that produces a number
+/// reads them. A scorer that started ranking against contract text would be a
+/// scorer measuring a document instead of a system, which is the failure both
+/// projects exist to avoid, and it would be one import away and invisible in
+/// review.
+#[test]
+fn nothing_that_produces_a_score_reads_the_vendored_contracts() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let self_file = root.join("tests").join("invariants.rs");
+    // The two scorers, static and telemetry. Neither may reach the contracts.
+    for module in ["scan.rs", "scorer.rs"] {
+        let path = root.join("src").join(module);
+        let text = fs::read_to_string(&path).unwrap();
+        for forbidden in ["remediate", "contracts.json", "CONTRACTS_JSON"] {
+            assert!(
+                !text.contains(forbidden),
+                "src/{module} produces a score and references {forbidden}; the contracts say what to build, never what a level is worth",
+            );
+        }
+    }
+    // And the contracts are read in exactly one place, so the rule above has
+    // one file to hold rather than a habit to maintain.
+    let mut files = Vec::new();
+    files_under(&root.join("src"), &mut files);
+    let readers: Vec<String> = files
+        .iter()
+        .filter(|f| **f != self_file)
+        .filter(|f| {
+            fs::read_to_string(f)
+                .unwrap_or_default()
+                .contains("contracts.json")
+        })
+        .map(|f| f.display().to_string())
+        .collect();
+    assert_eq!(
+        readers.len(),
+        1,
+        "the vendored contracts are read in one place, src/remediate.rs, and these read them: {readers:?}"
+    );
+}

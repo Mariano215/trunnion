@@ -256,19 +256,31 @@ fn every_score_under_the_ceiling_names_what_would_raise_it() {
                 f.primitive,
                 f.score
             );
-            // Grounded in the probe, not invented: the gap names a path or a
-            // marker the scan actually looked for, and the level it would
-            // reach. A recommendation the scan did not check for is the thing
-            // this assertion exists to refuse.
+            // Grounded in the probe, not invented. A recommendation the scan
+            // never checked for is what this assertion exists to refuse, and
+            // the evidence is built from the probe's own paths, so asking the
+            // two to agree is asking the gap to stay inside what was looked at.
+            if f.score == 0 {
+                let looked_in = f
+                    .evidence
+                    .trim_start_matches("looked in ")
+                    .trim_end_matches(": found nothing");
+                assert!(
+                    f.gap.contains(looked_in),
+                    "primitive {} is at 0 and its gap asks for something outside the paths the probe read.\n  evidence: {}\n  gap: {}",
+                    f.primitive,
+                    f.evidence,
+                    f.gap
+                );
+            }
+            // And it names no level. Which level the work earns is the reader's
+            // question, and the scan and the remediation queue answer it
+            // differently: 2 is the next state a static read can report, 3 is
+            // the first level anything is prescribed for.
             assert!(
-                f.gap.contains(if f.score == 0 {
-                    "to reach 2"
-                } else {
-                    "to reach 3"
-                }),
-                "primitive {} scored {} and its gap does not name the next level: {}",
+                !f.gap.contains("to reach"),
+                "primitive {} quotes a level in its gap, which is right in one caller's output and wrong in the other's: {}",
                 f.primitive,
-                f.score,
                 f.gap
             );
         }

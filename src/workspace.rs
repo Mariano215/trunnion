@@ -403,7 +403,21 @@ fn discard_orphan(dest: &Path) -> Result<(), Fault> {
 /// user's own helper as it always does, and a URL it has no credential for
 /// fails with git's message instead of blocking on a password prompt inside
 /// whatever invoked gantry. Nothing here reads, stores or forwards a token.
+///
+/// The URL is passed after `--` and refused if it begins with a dash, because
+/// otherwise it is not a URL, it is argv. `is_url` only asks for a transport,
+/// and `--upload-pack=ssh://x` carries one: git would read it as the option it
+/// looks like and run the command it names. The operator typing that at
+/// themselves is not the case worth defending against; a URL arriving from an
+/// issue, a README or a colleague is, and that is the normal way a repository
+/// address is obtained.
 fn clone(url: &str, dest: &Path) -> Result<(), Fault> {
+    if url.starts_with('-') {
+        return Err(Fault::new(
+            format!("{url} begins with a dash, so git would read it as an option rather than a repository"),
+            "pass the repository address itself; an argument like --upload-pack=... names a command for git to run and is not a URL, however much it looks like one",
+        ));
+    }
     if dest.exists() {
         return Err(Fault::new(
             format!("{} already exists", dest.display()),
@@ -419,7 +433,8 @@ fn clone(url: &str, dest: &Path) -> Result<(), Fault> {
         })?;
     }
     let out = Command::new("git")
-        .args(["clone", "--depth", "1", url])
+        .args(["clone", "--depth", "1", "--"])
+        .arg(url)
         .arg(dest)
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
