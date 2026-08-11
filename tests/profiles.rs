@@ -150,19 +150,39 @@ fn the_same_profile_under_degrade_starts_and_records_the_shortfall() {
     assert_eq!(short[3]["providable"], json!(["software"]));
 }
 
-/// The laptop profile declares what this build provides, so it starts with an
-/// empty shortfall list. A check that refused the tracked policy would be
-/// measuring the machine rather than the declaration.
+/// The tracked laptop profile starts on every platform, and what it could not
+/// provide is on the ledger rather than swallowed.
+///
+/// The declaration is `seatbelt`, which is macOS. On macOS that is provided
+/// and the shortfall list is empty, and a check that refused it would be
+/// measuring the machine rather than the declaration. On Linux the backend is
+/// Landlock, so `seatbelt` is genuinely unavailable and `degrade` is supposed
+/// to start the run and record it: asserting an empty list on both would be
+/// asserting that a Linux host provides a macOS sandbox. The isolation is
+/// still real on that host, which is what makes this a stale declaration in
+/// the tracked policy rather than an unsandboxed run, and the run says so on
+/// `run.open` instead of the suite hiding it.
 #[test]
-fn the_tracked_laptop_profile_is_unaffected() {
+fn the_tracked_laptop_profile_starts_and_names_what_it_could_not_provide() {
     let dir = workdir("laptop");
     let policy_path = repo_path("config/policy.json");
     let policy = Policy::load(&policy_path).unwrap();
-    let providable = Providable::for_this_build(gantry::sandbox::active_backend());
-    assert!(
-        unavailable_requirements(&policy.profile_requirements, &providable).is_empty(),
+    let backend = gantry::sandbox::active_backend();
+    let providable = Providable::for_this_build(backend);
+    let expected: Vec<&str> = if backend == "seatbelt" {
+        vec![]
+    } else {
+        vec!["isolation.declared"]
+    };
+    let fields: Vec<String> = unavailable_requirements(&policy.profile_requirements, &providable)
+        .iter()
+        .map(|s| s.field.clone())
+        .collect();
+    assert_eq!(
+        fields, expected,
         "the tracked laptop policy declares something this build cannot provide"
     );
+
     let led = dir.join("ledger-laptop");
     BrokerRun::open(
         Ledger::init(&led).unwrap(),
@@ -172,6 +192,20 @@ fn the_tracked_laptop_profile_is_unaffected() {
     )
     .map(|_| ())
     .expect("the tracked laptop profile starts");
+
+    // Whatever the list was, run.open carries exactly it.
+    let events: Vec<Value> = fs::read_to_string(led.join("events.jsonl"))
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let open = subject(&led, &events[0]);
+    let recorded: Vec<&str> = open["unavailable"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|s| s["field"].as_str()).collect())
+        .unwrap_or_default();
+    assert_eq!(recorded, expected, "run.open disagrees with the check");
+    assert_eq!(open["isolation"]["active_backend"], backend);
 }
 
 /// The gateway is the other run open, and a model call under a profile this

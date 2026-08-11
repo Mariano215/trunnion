@@ -319,7 +319,10 @@ if ! zsh ci/site-offline.sh; then
 fi
 
 echo "== every dependency has a note in docs/DEPENDENCIES.md =="
-deps=$(sed -n '/^\[dependencies\]/,/^\[/p' Cargo.toml | grep -E '^[a-z0-9_-]+ *=' | cut -d= -f1 | tr -d ' ')
+# Every dependency table, not only [dependencies]: the landlock backend is
+# declared under [target.'cfg(target_os = "linux")'.dependencies], and a check
+# that read one table would have let a platform-specific crate in undocumented.
+deps=$(awk '/^\[.*dependencies\]/ {t=1; next} /^\[/ {t=0} t && /^[a-z0-9_-]+ *=/ {sub(/ *=.*/, ""); print}' Cargo.toml | sort -u)
 for dep in ${(f)deps}; do
   # Whole-word match: "sha" must not pass because "sha2" is documented.
   if ! grep -qE "(^|[^a-zA-Z0-9_-])${dep}([^a-zA-Z0-9_-]|$)" docs/DEPENDENCIES.md; then

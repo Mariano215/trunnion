@@ -50,6 +50,37 @@ the call. The backend actually in force is recorded on every `tool.request`
 (`sandbox`) and on `run.open` (`isolation.active_backend`), so a missing
 backend degrades to `none` visibly rather than silently.
 
-`sandbox-exec` is macOS-specific. On a host without it the backend records
-`none` and the isolation claim is honestly unmet; a Linux backend
-(namespaces or a microvm) is a later slice.
+`sandbox-exec` is macOS-specific. On a host without it and without Landlock
+the backend records `none` and the isolation claim is honestly unmet.
+
+## landlock
+
+The Linux isolation backend, and the reason `none` is no longer what gantry
+reports on every non-macOS host. Until this crate arrived the binary compiled
+and ran on Linux with no containment at all, in a tool whose entire pitch is
+measuring whether other people's agents are contained.
+
+Network capability: none. Process capability: it restricts the calling thread
+between fork and exec, which is the same `std::process` capability noted above
+and narrows it rather than widening it.
+
+Landlock rather than seccomp, namespaces or bubblewrap, because it is
+unprivileged and kernel-native. It behaves identically on bare metal and
+inside a plain unprivileged `docker run`; bubblewrap needs user namespaces or
+CAP_SYS_ADMIN and would silently no-op under default Docker, which is the
+class of silent non-enforcement this project exists to catch. ABI v4 added TCP
+bind and connect restrictions, so the egress half needs no second mechanism
+and this is one dependency rather than two.
+
+The crate rather than the raw syscalls, which is the part worth arguing. The
+Landlock ABI has changed in every kernel from 5.13 to 6.12: v1 in 5.13, v2 in
+5.19, v3 in 6.2, v4 in 6.7, and access rights added after that. A hand-rolled
+`landlock_create_ruleset` has to negotiate the running kernel's version and
+mask the access rights it asks for down to what that version knows, or the
+call returns EINVAL and applies nothing. Getting that wrong does not fail
+loudly, it ships a sandbox that silently enforces nothing on a kernel nobody
+tested, which is precisely the defect the backend was added to remove. The
+crate is maintained by the kernel feature's author and does the negotiation
+correctly, and `src/sandbox.rs` sets `CompatLevel::HardRequirement` and
+refuses anything short of `RulesetStatus::FullyEnforced` so a downgrade is a
+failed spawn rather than a quiet one.

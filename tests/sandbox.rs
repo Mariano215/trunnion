@@ -155,6 +155,19 @@ fn sandbox_blocks_network_the_pattern_misses() {
         "the sandboxed nc reached loopback: {}",
         out.content
     );
+    // Without this leg the assertion above passes on any host with no `nc`,
+    // because the shell exits 127 and never opens a socket. That is a check
+    // reporting green while testing nothing, which is what this repository
+    // calls a dead sensor.
+    let outside = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(format!("nc -w 1 127.0.0.1 {port} < /dev/null"))
+        .output()
+        .unwrap();
+    assert!(
+        outside.status.success(),
+        "nc cannot reach a loopback listener on this host even with no sandbox, so the denial above proves nothing. Fix: install netcat (netcat-openbsd)"
+    );
     assert!(ledger::verify(&led).unwrap().ok());
 }
 
@@ -166,10 +179,17 @@ fn tool_request_records_the_active_backend() {
     let (mut run, led) = open_run(&dir, "backend");
     run.call("Read", "docs/PLAN.md").ok();
     run.seal("complete").unwrap();
+    // The expected value is the backend this host actually provides, not a
+    // literal: asserting "seatbelt" everywhere would pass on macOS and fail
+    // on the platform the backend was added for, and hard-coding either one
+    // would assert the platform rather than the property, which is that the
+    // record and the running system agree.
+    let backend = gantry::sandbox::active_backend();
+    assert_ne!(backend, "none", "this host enforces nothing");
     let req = last_subject(&led, "tool.request");
-    assert_eq!(req["sandbox"], "seatbelt");
+    assert_eq!(req["sandbox"], backend);
     let open = subject(&led, &events(&led)[0]);
-    assert_eq!(open["isolation"]["active_backend"], "seatbelt");
+    assert_eq!(open["isolation"]["active_backend"], backend);
     assert_eq!(open["isolation"]["declared"], "seatbelt");
 }
 
