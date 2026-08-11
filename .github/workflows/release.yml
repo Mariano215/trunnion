@@ -104,6 +104,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+
+      # A registry repository name must be lowercase and a GitHub owner need
+      # not be, so ghcr.io/Mariano215/gantry is not a name buildx will accept.
+      # github.repository is used verbatim by almost every published example
+      # of this workflow: it works for every owner whose login happens to be
+      # lowercase and fails for the rest at the push, after the gate and both
+      # binaries have already been built.
+      #
+      # tr rather than the ${name,,} expansion, which is bash 4 and so cannot
+      # be run on a macOS developer machine to check before it ships.
+      - id: image
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          name=$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "publishing ghcr.io/$name"
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -117,8 +136,8 @@ jobs:
           # trying it. A digest is what a policy should pin, and the release
           # notes say so rather than leaving `latest` to be read as stable.
           tags: |
-            ghcr.io/${{ github.repository }}:${{ needs.claim.outputs.version }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ steps.image.outputs.name }}:${{ needs.claim.outputs.version }}
+            ghcr.io/${{ steps.image.outputs.name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -137,8 +156,10 @@ jobs:
       - name: collect
         env:
           VERSION: ${{ needs.claim.outputs.version }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          GITHUB_REPOSITORY_LC=$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')
           cd artifacts
           sha256sum ./*.tar.gz > SHA256SUMS
           cat SHA256SUMS
@@ -155,7 +176,7 @@ jobs:
             echo "## Container"
             echo
             echo '```'
-            echo "docker pull ghcr.io/${GITHUB_REPOSITORY}:${VERSION}"
+            echo "docker pull ghcr.io/${GITHUB_REPOSITORY_LC}:${VERSION}"
             echo '```'
             echo
             echo "Isolation inside a plain unprivileged \`docker run\` is Landlock ABI v4, no flags and no added capabilities. On a kernel that does not provide it, \`gantry\` records the backend as \`none\` and the isolation claim is honestly unmet rather than quietly assumed."
