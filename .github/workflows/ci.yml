@@ -1,9 +1,19 @@
 name: ci
 
-# The CI form of the checks CLAUDE.md names. The suite needs macOS because
-# the execution-environment tests exercise the seatbelt sandbox
-# (sandbox-exec); a Linux runner would skip the very layer primitive 05
-# scores on.
+# The CI form of the checks CLAUDE.md names.
+#
+# Two jobs, because this project has two isolation backends and a gate that
+# ran on one platform would leave the other's containment claim carried by a
+# document. macOS runs the whole gate: the browser checks (ci/console-render,
+# ci/site-offline) and every project check live there. Linux runs the Rust
+# half, which is what exercises the Landlock backend, primitive 05's evidence
+# on that platform.
+#
+# The header here used to say the suite needs macOS because a Linux runner
+# would skip the very layer primitive 05 scores on. That stopped being true
+# when the Landlock backend landed: off-macOS is contained rather than "none",
+# and the sandbox tests assert a sandboxed loopback connection fails on
+# whichever backend the host provides.
 
 on:
   push:
@@ -24,3 +34,33 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - run: zsh ci/run.sh
+
+  # The Linux half. Not the whole gate: the browser checks are covered once on
+  # macOS and running them twice would buy a second rendering of the same
+  # assets, not a second platform's containment.
+  gate-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+
+      # The sandbox network tests run `nc` inside the sandbox and require the
+      # same command to succeed outside it, so a runner without netcat fails
+      # loudly instead of reporting a denial that never opened a socket. That
+      # dead-sensor case is real: it is how the tests passed on Linux before
+      # the control leg existed.
+      - run: sudo apt-get update && sudo apt-get install -y netcat-openbsd
+
+      # Landlock ABI v4 arrived in 6.7 and the runner's kernel is not this
+      # repository's to choose. If this runner enforces nothing,
+      # `tool_request_records_the_active_backend` fails with "this host
+      # enforces nothing" and names it, which is the intended result: a green
+      # gate over an uncontained run is the dead sensor this project exists to
+      # catch, and pinning the job to a kernel that happens to pass would be
+      # the same defect wearing a version number.
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test

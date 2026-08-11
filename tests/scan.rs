@@ -195,6 +195,98 @@ fn scanning_this_repository_stays_under_its_own_ceiling_and_reports_its_markers(
     );
 }
 
+#[test]
+fn a_report_round_trips_through_json_and_the_overall_is_still_the_minimum() {
+    let dir = workdir("json");
+    fs::create_dir_all(dir.join("tests")).unwrap();
+    fs::create_dir_all(dir.join("ci")).unwrap();
+    fs::write(dir.join("tests/t.rs"), "fn main() {}\n").unwrap();
+    fs::write(dir.join("ci/run.sh"), "cargo test --all\n").unwrap();
+    fs::write(dir.join("CLAUDE.md"), "# rules\n").unwrap();
+
+    let report = scan(&RepoRead::open(&dir).unwrap());
+    let text = serde_json::to_string(&report).unwrap();
+    let back: serde_json::Value = serde_json::from_str(&text).unwrap();
+
+    // The consumer of this JSON is another program, so every field the text
+    // report prints has to survive the trip under a name it can read.
+    assert_eq!(back["root"], report.root);
+    assert_eq!(back["overall"], report.overall);
+    let findings = back["findings"].as_array().unwrap();
+    assert_eq!(findings.len(), 12);
+    for (json, f) in findings.iter().zip(&report.findings) {
+        assert_eq!(json["primitive"], f.primitive);
+        assert_eq!(json["name"], f.name);
+        assert_eq!(json["score"], f.score);
+        assert_eq!(json["evidence"], f.evidence);
+        assert_eq!(json["gap"], f.gap);
+    }
+
+    // The rule the whole number rests on: the overall is the worst primitive,
+    // never an average that a good primitive can lift.
+    let minimum = report.findings.iter().map(|f| f.score).min().unwrap();
+    assert_eq!(report.overall, minimum);
+    assert_eq!(
+        back["overall"].as_u64().unwrap(),
+        u64::from(minimum),
+        "the serialised overall disagreed with the minimum across the findings"
+    );
+}
+
+#[test]
+fn every_score_under_the_ceiling_names_what_would_raise_it() {
+    // Two repositories, so both branches under the ceiling are exercised: one
+    // with nothing in it (every primitive at 0) and this one, which has
+    // artifacts nothing enforces alongside artifacts a check names.
+    for root in [workdir("gap-empty"), repo_path(".")] {
+        let report = scan(&RepoRead::open(&root).unwrap());
+        for f in &report.findings {
+            if f.score >= STATIC_CEILING {
+                assert!(
+                    f.gap.is_empty(),
+                    "primitive {} is at the ceiling and still names a gap; above 3 is a control running, which no file added to the tree can show: {}",
+                    f.primitive,
+                    f.gap
+                );
+                continue;
+            }
+            assert!(
+                !f.gap.trim().is_empty(),
+                "primitive {} scored {} and says nothing about what is missing",
+                f.primitive,
+                f.score
+            );
+            // Grounded in the probe, not invented. A recommendation the scan
+            // never checked for is what this assertion exists to refuse, and
+            // the evidence is built from the probe's own paths, so asking the
+            // two to agree is asking the gap to stay inside what was looked at.
+            if f.score == 0 {
+                let looked_in = f
+                    .evidence
+                    .trim_start_matches("looked in ")
+                    .trim_end_matches(": found nothing");
+                assert!(
+                    f.gap.contains(looked_in),
+                    "primitive {} is at 0 and its gap asks for something outside the paths the probe read.\n  evidence: {}\n  gap: {}",
+                    f.primitive,
+                    f.evidence,
+                    f.gap
+                );
+            }
+            // And it names no level. Which level the work earns is the reader's
+            // question, and the scan and the remediation queue answer it
+            // differently: 2 is the next state a static read can report, 3 is
+            // the first level anything is prescribed for.
+            assert!(
+                !f.gap.contains("to reach"),
+                "primitive {} quotes a level in its gap, which is right in one caller's output and wrong in the other's: {}",
+                f.primitive,
+                f.gap
+            );
+        }
+    }
+}
+
 /// A PEM block with a body this long, built at runtime rather than written
 /// out, because a 64-character base64 literal in this file would be a real key
 /// by the very measure under test and `gantry scan-keys` would fail on the

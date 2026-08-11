@@ -340,24 +340,32 @@ const PROBES: &[Probe] = &[
 /// One primitive's number and the paths behind it. The evidence field is never
 /// empty by construction: it either names what was found or names every path
 /// that was looked in and came back empty.
-#[derive(Debug, Clone)]
+///
+/// `gap` is the other half of the same discipline. Evidence says why the number
+/// is what it is; the gap says what would move it, and it is derived from the
+/// probe that produced the finding rather than from a recommendation table, so
+/// it can only ever ask for something the scan actually looked for. At the
+/// ceiling it is empty, because what lies above 3 is a control running and no
+/// file can be added to show that.
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Finding {
     pub primitive: u8,
     pub name: &'static str,
     pub score: u8,
     pub evidence: String,
+    pub gap: String,
 }
 
 /// An `[UNENFORCED]` marker in a rule file. `check` is the id the marker names
 /// as the thing that would close it, when the marker names one.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Marker {
     pub file: String,
     pub line: usize,
     pub check: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ScanReport {
     pub root: String,
     pub findings: Vec<Finding>,
@@ -643,10 +651,20 @@ pub fn scan(repo: &RepoRead) -> ScanReport {
             .copied()
             .filter(|p| repo.present(p))
             .collect();
-        let (score, evidence) = if found.is_empty() {
+        let (score, evidence, gap) = if found.is_empty() {
             (
                 0,
                 format!("looked in {}: found nothing", probe.artifacts.join(", ")),
+                // The gap states the shortfall and names no level. Which level
+                // it earns is the reader's question and they are not all asking
+                // the same one: the scan's next reachable state is 2, and the
+                // remediation queue aims at 3, because 3 is the first level
+                // anything is prescribed for. A number quoted here would be
+                // right for one of them and wrong in the other's output.
+                format!(
+                    "one of {} has to exist; the scan looked in those paths and nowhere else",
+                    probe.artifacts.join(", ")
+                ),
             )
         } else {
             match enforcing(&checks, probe.markers) {
@@ -658,12 +676,25 @@ pub fn scan(repo: &RepoRead) -> ScanReport {
                         path,
                         marker
                     ),
+                    // The ceiling. Nothing added to the tree moves this number,
+                    // so naming a next file here would be an instruction to
+                    // write prose at a control.
+                    String::new(),
                 ),
                 None => (
                     2,
                     format!(
                         "found {}, and no check file names it, so it is an artifact carried by discipline",
                         found.join(", ")
+                    ),
+                    // What `enforcing` actually resolves is a check file whose
+                    // text contains a marker, never one that names the artifact
+                    // found. Saying both would describe a test that is not the
+                    // one this number came from.
+                    format!(
+                        "one of {} has to mention this layer: its text has to contain any of {}. The artifact is on disk and no check file does, so nothing fails when someone ignores it",
+                        CHECK_FILES.join(", "),
+                        probe.markers.join(", ")
                     ),
                 ),
             }
@@ -673,6 +704,7 @@ pub fn scan(repo: &RepoRead) -> ScanReport {
             name: probe.name,
             score: score.min(STATIC_CEILING),
             evidence,
+            gap,
         });
     }
     let overall = findings.iter().map(|f| f.score).min().unwrap_or(0);

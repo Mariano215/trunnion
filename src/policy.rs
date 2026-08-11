@@ -194,6 +194,27 @@ fn with_none(provided: &str) -> Vec<String> {
     }
 }
 
+/// What a host with this backend can answer for on the isolation field: the
+/// mechanism by name, the property when the backend holds both halves of it,
+/// and `none`.
+///
+/// A profile may declare either. Naming the mechanism is the stronger claim
+/// and still works, which is what a `regulated` profile pinning a specific
+/// sandbox needs; naming the property is what a profile means when it wants a
+/// run confined and does not care which kernel provides it. The property is
+/// added by `sandbox::confines_filesystem_and_network`, so a Landlock kernel
+/// below ABI v4 provides the mechanism and not the property, and a profile
+/// asking for confinement degrades there rather than being told it got it.
+fn isolation_for(backend: &str) -> Vec<String> {
+    let mut out = with_none(backend);
+    if crate::sandbox::confines_filesystem_and_network(backend) {
+        // Before `none`, so the shortfall message reads "provides
+        // landlock-v4 or per_run_confinement or none".
+        out.insert(out.len() - 1, crate::sandbox::CONFINEMENT.to_string());
+    }
+    out
+}
+
 impl Providable {
     /// What this build can provide, given the isolation backend the caller
     /// observed. The other three are fixed because this build implements
@@ -203,7 +224,7 @@ impl Providable {
     /// or an `hsm` names something no code path here produces, on any machine.
     pub fn for_this_build(isolation_backend: &str) -> Providable {
         Providable {
-            isolation: with_none(isolation_backend),
+            isolation: isolation_for(isolation_backend),
             identity: with_none("local"),
             anchoring: vec!["none".to_string()],
             key_custody: vec!["software".to_string()],

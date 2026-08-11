@@ -8,6 +8,7 @@ pub mod graph;
 pub mod ledger;
 pub mod merkle;
 pub mod policy;
+pub mod remediate;
 pub mod runlog;
 pub mod sandbox;
 pub mod scan;
@@ -16,6 +17,7 @@ pub mod secrets;
 pub mod sensor;
 pub mod skills;
 pub mod trust;
+pub mod workspace;
 
 use std::fmt;
 

@@ -2,8 +2,11 @@
 # The CI gate, runnable locally and by .github/workflows/ci.yml. Every check
 # here is one a CLAUDE.md rule names; a rule whose check lives only in prose
 # caps at maturity 3, which is this project's whole thesis. Run from the
-# repository root. Requires the stable Rust toolchain and macOS (the sandbox
-# tests exercise seatbelt).
+# repository root. Requires the stable Rust toolchain, and macOS for the whole
+# gate: the browser checks need a headless Chrome and the seatbelt profile is
+# the backend exercised here. The Rust half runs on Linux too, where the
+# sandbox tests exercise Landlock instead, and that is what
+# .github/workflows/ci.yml runs as its second job.
 set -e
 
 echo "== format =="
@@ -319,7 +322,10 @@ if ! zsh ci/site-offline.sh; then
 fi
 
 echo "== every dependency has a note in docs/DEPENDENCIES.md =="
-deps=$(sed -n '/^\[dependencies\]/,/^\[/p' Cargo.toml | grep -E '^[a-z0-9_-]+ *=' | cut -d= -f1 | tr -d ' ')
+# Every dependency table, not only [dependencies]: the landlock backend is
+# declared under [target.'cfg(target_os = "linux")'.dependencies], and a check
+# that read one table would have let a platform-specific crate in undocumented.
+deps=$(awk '/^\[.*dependencies\]/ {t=1; next} /^\[/ {t=0} t && /^[a-z0-9_-]+ *=/ {sub(/ *=.*/, ""); print}' Cargo.toml | sort -u)
 for dep in ${(f)deps}; do
   # Whole-word match: "sha" must not pass because "sha2" is documented.
   if ! grep -qE "(^|[^a-zA-Z0-9_-])${dep}([^a-zA-Z0-9_-]|$)" docs/DEPENDENCIES.md; then

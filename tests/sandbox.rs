@@ -155,6 +155,19 @@ fn sandbox_blocks_network_the_pattern_misses() {
         "the sandboxed nc reached loopback: {}",
         out.content
     );
+    // Without this leg the assertion above passes on any host with no `nc`,
+    // because the shell exits 127 and never opens a socket. That is a check
+    // reporting green while testing nothing, which is what this repository
+    // calls a dead sensor.
+    let outside = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(format!("nc -w 1 127.0.0.1 {port} < /dev/null"))
+        .output()
+        .unwrap();
+    assert!(
+        outside.status.success(),
+        "nc cannot reach a loopback listener on this host even with no sandbox, so the denial above proves nothing. Fix: install netcat (netcat-openbsd)"
+    );
     assert!(ledger::verify(&led).unwrap().ok());
 }
 
@@ -166,11 +179,38 @@ fn tool_request_records_the_active_backend() {
     let (mut run, led) = open_run(&dir, "backend");
     run.call("Read", "docs/PLAN.md").ok();
     run.seal("complete").unwrap();
+    // The expected value is the backend this host actually provides, not a
+    // literal: asserting "seatbelt" everywhere would pass on macOS and fail
+    // on the platform the backend was added for, and hard-coding either one
+    // would assert the platform rather than the property, which is that the
+    // record and the running system agree.
+    let backend = gantry::sandbox::active_backend();
+    assert_ne!(backend, "none", "this host enforces nothing");
     let req = last_subject(&led, "tool.request");
-    assert_eq!(req["sandbox"], "seatbelt");
+    assert_eq!(req["sandbox"], backend);
     let open = subject(&led, &events(&led)[0]);
-    assert_eq!(open["isolation"]["active_backend"], "seatbelt");
-    assert_eq!(open["isolation"]["declared"], "seatbelt");
+    assert_eq!(open["isolation"]["active_backend"], backend);
+    // The declaration is read from the tracked policy for the same reason the
+    // backend above is read from the running system: a literal here would
+    // assert which string that file currently holds rather than the property
+    // under test, which is that run.open repeats the profile's declaration
+    // beside what the machine actually provided. It held "seatbelt" for
+    // nineteen slices and became a property name when the Linux backend
+    // arrived, and this assertion should not have needed editing for that.
+    let declared: Value =
+        serde_json::from_str(&fs::read_to_string(repo_path("config/policy.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        open["isolation"]["declared"],
+        declared["profile_requirements"]["isolation"]["declared"]
+    );
+    // And the run is clean on this host: a profile asking for confinement
+    // gets it from whichever backend is in force, so nothing is short.
+    assert!(
+        open["unavailable"].as_array().is_none_or(|u| u.is_empty()),
+        "the tracked laptop profile records a shortfall on this host: {}",
+        open["unavailable"]
+    );
 }
 
 /// A file write outside the run's workdir fails inside the sandbox even

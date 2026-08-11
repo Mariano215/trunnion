@@ -274,7 +274,7 @@ fn serve(ledger: &Path) -> SocketAddr {
     let listener = console::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let dir = ledger.display().to_string();
-    thread::spawn(move || console::serve_on(&listener, &dir));
+    thread::spawn(move || console::serve_on(&listener, Some(&dir)));
     addr
 }
 
@@ -849,4 +849,90 @@ fn verify_reports_a_seq_gap_and_the_ledger_still_reads_ok() {
     assert_eq!(gaps[0]["after"], 0);
     assert_eq!(gaps[0]["before"], 3);
     assert_eq!(gaps[0]["missing"], 2);
+}
+
+/// The workspace routes, and the state a console started without a ledger is in.
+///
+/// One test rather than several: `GANTRY_HOME` is process-global and the tests
+/// in this binary run in parallel, so a second test setting it would be racing
+/// this one for the same variable.
+#[test]
+fn the_workspace_routes_answer_without_a_ledger_and_the_log_routes_say_why_they_cannot() {
+    let root = std::env::temp_dir().join(format!("gantry-console-ws-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    let home = root.join("home");
+    let project = root.join("code/demo");
+    fs::create_dir_all(project.join(".claude")).unwrap();
+    fs::write(project.join("CLAUDE.md"), "# rules\n").unwrap();
+    std::env::set_var("GANTRY_HOME", &home);
+
+    let mut ws = gantry::workspace::Workspace::load(&home).unwrap();
+    ws.add(
+        &home,
+        &project.display().to_string(),
+        Some("demo"),
+        gantry::workspace::Risk::Regulated,
+    )
+    .unwrap();
+    ws.save(&home).unwrap();
+
+    // A console with no ledger still answers the workspace.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    thread::spawn(move || console::serve_on(&listener, None));
+
+    let list = get(addr, "/api/projects");
+    assert_eq!(list.status, 200);
+    let v = list.json();
+    assert_eq!(
+        v["ceiling"],
+        json!(3),
+        "the page states what a static read caps at"
+    );
+    let row = &v["projects"][0];
+    assert_eq!(row["id"], json!("demo"));
+    assert_eq!(
+        row["risk"],
+        json!("regulated"),
+        "risk reaches the page, because it is what orders the queue"
+    );
+    assert_eq!(row["readable"], json!(true));
+    assert_eq!(row["scores"].as_array().unwrap().len(), 12);
+    // at_floor is what the front page leads with, since the composite is the
+    // minimum and reads 0 for almost every real repository.
+    assert!(row["at_floor"].as_u64().unwrap() >= 1, "{row}");
+
+    let scan = get(addr, "/api/projects/demo/scan").json();
+    assert_eq!(scan["findings"].as_array().unwrap().len(), 12);
+    assert!(
+        scan["findings"][0]["gap"].is_string(),
+        "the scan carries the gap: {scan}"
+    );
+
+    let rem = get(addr, "/api/projects/demo/remediate").json();
+    assert!(
+        rem["document"]
+            .as_str()
+            .unwrap()
+            .contains("REQUIREMENT FOR LEVEL"),
+        "{rem}"
+    );
+    // Regulated work audits before it capabilities, so the trust layer leads.
+    assert_eq!(rem["gaps"][0]["key"], json!("execution_environment"));
+
+    // The log routes report that there is no log, which is a different state
+    // from a log that is damaged. The takeover reads the second as an alarm.
+    let no_ledger = get(addr, "/api/verify");
+    assert_eq!(no_ledger.status, 404);
+    assert!(
+        no_ledger.body.contains("started without a ledger"),
+        "the fault says which state this is: {}",
+        no_ledger.body
+    );
+
+    let missing = get(addr, "/api/projects/nope/scan");
+    assert_eq!(missing.status, 404);
+    assert!(missing.body.contains("nope"), "{}", missing.body);
+
+    std::env::remove_var("GANTRY_HOME");
 }

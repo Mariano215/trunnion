@@ -125,10 +125,10 @@
             {
               "kind": "tool.request",
               "pointer": "/sandbox",
-              "equals": "seatbelt"
+              "not_equals": "none"
             }
           ],
-          "evidence": "commands run inside a seatbelt sandbox, recorded per request"
+          "evidence": "commands run inside a per-run sandbox, recorded per request as the backend that enforced it"
         }
       ]
     },

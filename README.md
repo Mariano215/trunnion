@@ -262,7 +262,7 @@ $ ./target/debug/gantry score /tmp/demo/ledger
 | 02 Context delivery | N/A | N/A: no telemetry for this primitive in this ledger |
 | 03 Context management | N/A | N/A: no telemetry for this primitive in this ledger |
 | 04 Tool interface | 4 | tool results carry taint |
-| 05 Execution environment | 4 | commands run inside a seatbelt sandbox, recorded per request |
+| 05 Execution environment | 4 | commands run inside a per-run sandbox, recorded per request as the backend that enforced it |
 | 06 Durable state | N/A | N/A: no telemetry for this primitive in this ledger |
 | 07 Orchestration | N/A | N/A: no telemetry for this primitive in this ledger |
 | 08 Sub-agents | N/A | N/A: no telemetry for this primitive in this ledger |
@@ -376,8 +376,8 @@ to bottom and it says: held, approved, spent, ran. `docs/proof/14.md` has the
 whole arc including the cases that must fail.
 
 An hour also does not get you an anchored head, a drift report over the whole
-profile, or an isolation backend other than seatbelt, because none of those is
-built.
+profile, or a microVM, because none of those is built. Isolation is real on
+macOS and Linux and nowhere else: seatbelt and Landlock ABI v4.
 `docs/GLOSSARY.md` ends with the full list of terms that are declared and not
 yet running, and each proof document in `docs/proof/` closes with its own
 section on what is still a guide.
@@ -510,7 +510,8 @@ no anchoring view. Live update is a poll, not a stream.
   tool definitions, and denials that name their rule. A deny rule shadowed by
   an earlier allow refuses to load rather than sitting there unreachable.
 - **Sandbox and credential broker** (`src/sandbox.rs`, `src/secrets.rs`):
-  per-run seatbelt isolation, network denied except an allowlist, and secrets
+  per-run isolation (seatbelt on macOS, Landlock ABI v4 on Linux), network
+  denied except an allowlist, and secrets
   the model never sees. Agents hold handles; the broker substitutes the real
   value into the child process environment at the boundary, never into a
   prompt, a command string or an event.
@@ -553,7 +554,7 @@ same twelve numbers without trusting the binary.
 | 02 | Context delivery | 3 | Normalised model.call events with a pinned prompt hash. |
 | 03 | Context management | 3 | Window budget and actual recorded per call; graph retrieval ledgered with its byte cost and staleness re-reads. |
 | 04 | Tool interface | 4 | MCP-shaped registry, taint on every result. |
-| 05 | Execution environment | 4 | Commands run inside a seatbelt sandbox, recorded per request. |
+| 05 | Execution environment | 4 | Commands run inside a per-run sandbox, recorded per request as the backend that enforced it. |
 | 06 | Durable state | 3 | A run resumed from a checkpoint: the seam is on the record. |
 | 07 | Orchestration | 4 | A human gate ran at an irreversible step: the policy held the call, and a human answered it on the record. Approve and refuse earn the same level, because a refusal is the gate working. |
 | 08 | Sub-agents | 3 | A delegated run records subagent.spawn, and the chokepoint denies an out-of-grant call with rule r-delegation. |
@@ -586,7 +587,7 @@ One profile sets isolation, gate placement, anchoring and identity together.
 
 | Profile | Isolation | Identity | Ledger | Default rung |
 |---|---|---|---|---|
-| `laptop` | seatbelt, empty egress allowlist | local accounts | local file | autonomous, post-hoc review |
+| `laptop` | per-run confinement (seatbelt or Landlock v4), empty egress allowlist | local accounts | local file | autonomous, post-hoc review |
 | `team` | kernel-level sandbox | OIDC | anchored daily to object storage | assisted |
 | `regulated` | microVM | OIDC required, no local fallback | HSM or TPM keys, external timestamping | assisted, no promotion without a named approver |
 
@@ -646,6 +647,15 @@ April 2026), which is where the distinction between a rule that advises and a
 check that fires comes from.
 
 ## Licence
+
+Built and maintained by [Mattei Systems](https://matteisystems.com).
+
+Mattei Systems sells assessments against this model, which is a conflict worth
+stating rather than leaving for a reader to discover: the scoring logic is open,
+every number names the evidence behind it, and any finding this tool produces is
+verifiable by someone who does not work here. The
+[specification's governance document](https://github.com/Mariano215/agent-harness-maturity/blob/main/GOVERNANCE.md)
+carries the same statement and the mitigations that go with it.
 
 Apache License 2.0, full text in `LICENSE`. Apache rather than MIT because
 this is a security control plane meant to be embedded in other people's

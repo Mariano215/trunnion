@@ -22,3 +22,9 @@ hex = "0.4"
 # ureq: blocking HTTP for the gateway adapter, rustls TLS. The gateway is the
 # one component allowed to reach a provider; see docs/DEPENDENCIES.md.
 ureq = { version = "2", features = ["json"] }
+
+# landlock: the Linux isolation backend. Unprivileged and kernel-native, so
+# it applies inside a plain docker run where a namespace sandbox cannot. See
+# docs/DEPENDENCIES.md for why the crate rather than the raw syscalls.
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"

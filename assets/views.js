@@ -127,6 +127,247 @@ export function eventDetail(box, ev) {
   );
 }
 
+// ---------- workspace ----------
+//
+// The set of repositories, and one of them in profile. This is the view a
+// review opens with, and it is the one view that answers on a console started
+// without a ledger: a static scan reads a tree, and a tree needs no log.
+//
+// Every number here comes off /api/projects and /api/projects/:id/scan, and
+// every word of remediation off /api/projects/:id/remediate, which quotes the
+// contracts. Nothing on this page is computed from a primitive's name or
+// ranked by a table this file holds, because a console that ordered the work
+// itself would be prescribing a level, which is the one thing gantry does not
+// do.
+
+// A static read resolves three states, 0, 2 and 3: it awards no 1, because
+// habits leave no file (src/scan.rs). So the next reachable level from a floor
+// of 0 is 2, not 1, and saying "floor plus one" there would name a level this
+// scan cannot award.
+const nextLevel = (floor) => (floor === 0 ? 2 : floor + 1);
+
+function andList(a) {
+  if (a.length === 0) return 'nothing';
+  if (a.length === 1) return a[0];
+  return `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
+}
+
+function projectChip(p, current) {
+  const scores = p.scores || [];
+  const floor = scores.length ? Math.min(...scores) : null;
+  const ticks = el('span', { class: 'chip-ticks' },
+    scores.map((v) => el('i', { 'data-v': String(v), 'data-floor': v === floor ? '1' : null })));
+  return el('a', {
+    class: 'chip',
+    href: `#/workspace/${encodeURIComponent(p.id)}`,
+    'aria-pressed': p.id === current ? 'true' : 'false',
+    title: p.path,
+  },
+  el('span', { class: 'chip-name' }, p.id),
+  p.readable ? ticks : el('span', { class: 'chip-ticks chip-ticks-none' }),
+  el('span', { class: 'chip-sub' }, p.readable
+    ? `${num(p.at_floor)} at floor · overall ${p.overall}`
+    : 'unreadable'));
+}
+
+// The chart, the anchor gutter and the axis all ride one twelve-column grid,
+// so a bar, the mark under it and its label cannot drift apart.
+function railChart(findings, overall, ceiling) {
+  const cols = el('div', { class: 'cols track' });
+  const gutter = el('div', { class: 'track' });
+  const axis = el('div', { class: 'track' });
+  for (const f of findings) {
+    const atFloor = f.score === overall;
+    cols.append(el('div', { class: 'col', 'data-floor': atFloor ? '1' : '0' },
+      el('div', { class: 'bar', style: `--v:${f.score}` }, el('b', {}, String(f.score)))));
+    gutter.append(el('div', { class: 'anchor', 'data-floor': atFloor ? '1' : '0' }));
+    axis.append(el('span', { 'data-floor': atFloor ? '1' : '0', title: f.name },
+      el('span', { class: 'n' }, String(f.primitive).padStart(2, '0')),
+      el('span', { class: 'nm' }, f.name)));
+  }
+
+  const yaxis = el('div', { class: 'yaxis' });
+  for (let v = 0; v <= 5; v += 1) {
+    yaxis.append(el('span', { style: `bottom:${(v / 5) * 100}%` }, String(v)));
+  }
+
+  return el('div', {},
+    el('div', { class: 'chartwrap' },
+      yaxis,
+      el('div', { class: 'chart' },
+        el('div', { class: 'ceiling', style: `bottom:${(ceiling / 5) * 100}%` },
+          el('b', {}, 'telemetry required')),
+        [1, 2, 3, 4].map((n) => el('div', { class: 'gridline', style: `bottom:${n * 20}%` })),
+        cols,
+        el('div', {
+          class: 'rail',
+          style: `--min:${overall}`,
+          'data-label': `overall ${overall}`,
+        }))),
+    el('div', { class: 'gutter' }, gutter),
+    el('div', { class: 'xaxis' }, axis));
+}
+
+function evidenceRows(findings, overall) {
+  const rows = el('div', { class: 'rows' });
+  for (const f of findings) {
+    rows.append(el('div', { class: 'row', 'data-floor': f.score === overall ? '1' : '0' },
+      el('div', { class: 'row-n' }, String(f.primitive).padStart(2, '0')),
+      el('div', {},
+        el('h3', { class: 'row-name' }, f.name),
+        el('p', { class: 'row-ev' }, f.evidence),
+        f.gap ? el('p', { class: 'row-gap' }, el('b', {}, 'gap'), f.gap) : null),
+      el('div', { class: 'row-v' }, String(f.score))));
+  }
+  return rows;
+}
+
+// The queue, in the contracts' own words. The order is harness-kit's
+// remediation rank, computed by the API; this renders it and sorts nothing.
+function liftOrder(id, gaps) {
+  const ol = el('ol', {});
+  for (const g of gaps) {
+    ol.append(el('li', {}, el('div', {},
+      el('h4', {}, g.name),
+      el('p', {}, `Raise ${g.key} from ${g.current} to ${g.target}. ${g.gap}`),
+      commandBox(`gantry project remediate ${id} --primitive ${g.primitive}`))));
+  }
+  return ol;
+}
+
+export async function workspace(host, route) {
+  const body = el('div', { class: 'view' }, loading('the workspace'));
+  clear(host).append(body);
+
+  const ws = await api.projects();
+  const projects = ws.projects || [];
+  const ceiling = ws.ceiling ?? 3;
+  setProvenance(projects, ws.ceiling);
+
+  if (projects.length === 0) {
+    clear(body).append(panel('No project is registered', { sub: 'the workspace registry is empty' },
+      el('p', {}, 'A workspace is a set of repositories this console scans. Register one and it appears here.'),
+      commandBox('gantry project add <path-or-git-url>')));
+    return;
+  }
+
+  const wanted = route && route.segments[1] ? decodeURIComponent(route.segments[1]) : null;
+  const current = projects.find((p) => p.id === wanted)
+    || projects.find((p) => p.readable)
+    || projects[0];
+
+  const index = el('nav', { class: 'index', 'aria-label': 'Projects' },
+    projects.map((p) => projectChip(p, current.id)));
+
+  const profileSlot = el('div', {}, loading(`the scan of ${current.id}`));
+  const liftSlot = el('div', { class: 'lift' }, loading('the remediation queue'));
+  const chain = current.ledger
+    ? panel('Chain', { sub: 'append only, signed head, verifiable offline' },
+      kv([
+        ['ledger', mono(current.ledger)],
+        ['last scan', mono(current.last_scan || 'never')],
+      ]),
+      el('p', { class: 'stat-note', style: 'margin:10px 0 0' },
+        'Open this ledger to read what ran: ', mono(`gantry console ${current.ledger}`),
+        '. A file says a check is wired; only a run says it fired, and telemetry is the only way any primitive here moves above ', String(ceiling), '.'))
+    : panel('Chain', { sub: 'append only, signed head, verifiable offline' },
+      el('div', { class: 'chain-empty' },
+        el('i', {}),
+        el('p', {},
+          el('b', {}, 'No ledger. Static evidence only.'),
+          'A file says a check is wired. Only a run says it fired. Route this project through the gateway and the broker and every tool call, policy verdict and approval lands in a tamper-evident log, which is the only way any primitive here moves above ',
+          String(ceiling), '. This console reads one when it is started against it.',
+          commandBox('gantry console <ledger-dir>'))));
+
+  clear(body).append(
+    index,
+    el('section', { class: 'panel' },
+      el('div', { class: 'panel-head' },
+        el('h2', {}, `Profile — ${current.id}`),
+        el('span', { class: 'sub mono' }, current.path)),
+      el('div', { class: 'panel-body flush' }, profileSlot)),
+    panel('Evidence', { sub: 'one path behind every number, or the list of paths that held nothing', flush: true },
+      el('div', { class: 'evidence-slot' })),
+    panel('Lift order', { sub: 'ranked by the contracts, quoted in their own words', flush: true }, liftSlot),
+    chain,
+  );
+
+  const evidenceSlot = body.querySelector('.evidence-slot');
+
+  if (!current.readable) {
+    clear(profileSlot).append(errPanel({
+      path: `/api/projects (${current.id})`,
+      cause_: current.cause,
+      fix: current.fix,
+    }));
+    clear(evidenceSlot).append(el('div', { class: 'empty' }, 'no scan, because the tree could not be read'));
+    clear(liftSlot).append(el('div', { class: 'empty' }, 'no queue, because there is nothing scored to queue'));
+    return;
+  }
+
+  const [report, brief] = await Promise.all([
+    api.projectScan(current.id),
+    api.projectRemediate(current.id).catch((err) => ({ error: err })),
+  ]);
+  const findings = report.findings || [];
+  const overall = report.overall;
+  const atFloor = findings.filter((f) => f.score === overall);
+  const zeros = findings.filter((f) => f.score === 0).length;
+  // A repository carrying almost no agent artifact is not a failing agent
+  // platform. Say how many probes came back empty rather than rounding it to a
+  // judgement the scan did not make.
+  const nonAgentic = zeros >= 10;
+
+  clear(profileSlot).append(
+    nonAgentic
+      ? el('div', { class: 'nonagentic' },
+        el('b', {}, 'Little or no agentic surface. '),
+        `${num(zeros)} of the twelve probes found nothing on disk. That is what a repository which does not run agents looks like, not a failing one. Confirm the project is meant to be agentic before reading anything into the floor: a score measures nothing until there is something to measure.`)
+      : null,
+    railChart(findings, overall, report.ceiling ?? ceiling),
+    el('div', { class: 'verdict' }, el('i', {}), el('p', {},
+      nonAgentic
+        ? el('span', {}, el('b', {}, `${num(zeros)} of twelve probes came back empty. `),
+          el('em', {}, 'The floor here is mostly the absence of a subject, not a judgement of one. Nothing needs lifting until the project runs agents.'))
+        : el('span', {},
+          el('b', {}, `${num(atFloor.length)} primitive${atFloor.length === 1 ? ' holds' : 's hold'} the rail at ${overall}: `),
+          `${andList(atFloor.map((f) => f.name.toLowerCase()))}. `,
+          el('em', {}, `Raising any one alone moves nothing: the overall level is the minimum, so all ${num(atFloor.length)} have to leave ${overall} before the rail lifts. The next state this read can award is ${nextLevel(overall)}; the queue below aims at the first level the contracts prescribe for.`)))),
+    report.markers && report.markers.length
+      ? el('div', { class: 'verdict verdict-quiet' }, el('i', {}), el('p', {},
+        el('b', {}, `${num(report.markers.length)} unenforced marker${report.markers.length === 1 ? '' : 's'} in this tree. `),
+        el('em', {}, 'A rule its own repository records as carried by discipline and by no check.')))
+      : null,
+  );
+
+  clear(evidenceSlot).append(evidenceRows(findings, overall));
+
+  if (brief.error) {
+    clear(liftSlot).append(errPanel(brief.error));
+  } else if (!(brief.gaps || []).length) {
+    clear(liftSlot).append(el('div', { class: 'empty' },
+      `nothing is prescribed: every primitive is at the ceiling a static read can award (${report.ceiling ?? ceiling})`));
+  } else {
+    clear(liftSlot).append(liftOrder(current.id, brief.gaps));
+  }
+}
+
+// The provenance bar states what backs the numbers below it. It is filled from
+// the same read that draws them, and says so plainly when nothing has been
+// read yet.
+function setProvenance(projects, ceiling) {
+  const set = (id, text) => {
+    const n = document.getElementById(id);
+    if (n) n.textContent = text;
+  };
+  set('prov-n', `${projects.length} project${projects.length === 1 ? '' : 's'}`);
+  set('prov-ceiling', `ceiling ${ceiling ?? 3}`);
+  const withLedger = projects.filter((p) => p.ledger).length;
+  set('prov-telemetry', withLedger
+    ? `${withLedger} of ${projects.length} with a ledger`
+    : 'no telemetry');
+}
+
 // ---------- overview ----------
 
 export async function overview(host) {
@@ -941,4 +1182,4 @@ export async function verify(host) {
   }
 }
 
-export const views = { overview, ledger, run, trace, policy, trust, inbox, verify };
+export const views = { workspace, overview, ledger, run, trace, policy, trust, inbox, verify };

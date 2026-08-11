@@ -100,10 +100,16 @@ fn the_generated_allowlist_is_not_an_observation_of_itself() {
 /// bad line.
 #[test]
 fn an_unreadable_source_does_not_stop_the_walk() {
+    // The matching field declares whatever this host runs rather than the
+    // literal "seatbelt": what is under test is that a bad `observed_by` in
+    // the middle does not silence the fields around it, and pinning a
+    // platform here would make the walk's own behaviour look platform
+    // dependent when it is not.
+    let here = gantry::sandbox::active_backend();
     let (_dir, path) = policy_with(
         "unknown",
         json!({
-            "a_isolation": {"declared": "seatbelt", "observed_by": "sandbox.active_backend"},
+            "a_isolation": {"declared": here, "observed_by": "sandbox.active_backend"},
             "b_typo": {"declared": "whatever", "observed_by": "sandbox.actve_backend"},
             "c_instruction_pack": {"declared": "sha256:nope", "observed_by": "gateway.instruction_hash"},
         }),
