@@ -82,6 +82,33 @@ pub fn active_backend() -> &'static str {
     }
 }
 
+/// The property a profile declares when it asks for isolation without naming
+/// the mechanism that provides it: a per-run sandbox confining both the
+/// filesystem and the network. This is the name `profile_requirements`
+/// declares, and `Providable::for_this_build` adds it to what the host
+/// provides only when the backend in force actually holds both halves.
+///
+/// The field used to name a mechanism, `seatbelt`, and the comparison was
+/// string equality, so a Linux host confining a run with Landlock v4 recorded
+/// a shortfall it did not have and a `regulated` profile under
+/// `on_unavailable: refuse` could not start there at all. Naming the property
+/// fixes that without weakening it: a mechanism name still works as a
+/// declaration for anyone who needs to pin one, and a host with neither
+/// backend still provides nothing but `none`.
+pub const CONFINEMENT: &str = "per_run_confinement";
+
+/// Whether a backend string confines the network as well as the filesystem.
+/// This is the whole substance of the property above, and it is why the
+/// property is not a rename of the mechanism: Landlock added TCP bind and
+/// connect restrictions in ABI v4, so `landlock-v1` through `-v3` enforce the
+/// filesystem half and nothing about egress. A v3 kernel therefore does not
+/// satisfy `per_run_confinement` and degrades honestly, which is the same
+/// answer the old string comparison gave for the right reason rather than by
+/// accident.
+pub fn confines_filesystem_and_network(backend: &str) -> bool {
+    backend == "seatbelt" || backend == "landlock-v4"
+}
+
 /// A process-unique scratch directory under TMPDIR. Run ids are millisecond
 /// timestamps, so two runs opened in the same millisecond (parallel tests,
 /// tight loops) would otherwise share a sandbox workdir and each other's

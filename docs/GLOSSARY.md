@@ -389,7 +389,11 @@ model's reply tainted in turn.
 
 **Sandbox.** Per-run isolation for every command the broker executes,
 `src/sandbox.rs`. On macOS the backend is seatbelt (`/usr/bin/sandbox-exec`)
-with a generated profile. The active backend is recorded on every
+with a generated profile; on Linux it is Landlock, negotiated against the
+running kernel, and the recorded string names the ABI actually in force
+(`landlock-v4` is filesystem and network, `-v1` through `-v3` are filesystem
+only, so a kernel that enforces one half cannot be recorded as enforcing
+both). The active backend is recorded on every
 `tool.request` as `sandbox`, so the declaration in the policy is observable
 rather than asserted; where the backend binary is missing it records `none` and
 the isolation claim is honestly unmet rather than silently bypassed.
@@ -600,10 +604,10 @@ mount from a sibling directory on the same disk.
 behaviours run. A non-laptop profile that declares a published signing seed
 refuses to start, and `on_unavailable: refuse` refuses any profile declaring a
 requirement this build cannot provide (`policy::availability_check`,
-`tests/profiles.rs`, `ci/profile-unavailable-refuses`). Since no isolation
-backend other than seatbelt exists, and neither does OIDC, anchoring nor an
-HSM, a `regulated` profile written the way `docs/POLICY-SCHEMA.md` describes
-it does not start on this machine, which is the intended result rather than a
+`tests/profiles.rs`, `ci/profile-unavailable-refuses`). Isolation is provided
+on macOS and Linux, but no microVM backend exists, and neither does OIDC,
+anchoring nor an HSM, so a `regulated` profile written the way
+`docs/POLICY-SCHEMA.md` describes it does not start on this machine, which is the intended result rather than a
 gap. Under `degrade` it starts and the shortfall is on `run.open` as
 `unavailable`.
 

@@ -150,18 +150,22 @@ fn the_same_profile_under_degrade_starts_and_records_the_shortfall() {
     assert_eq!(short[3]["providable"], json!(["software"]));
 }
 
-/// The tracked laptop profile starts on every platform, and what it could not
-/// provide is on the ledger rather than swallowed.
+/// The tracked laptop profile starts on every platform it is confined on, and
+/// what it could not provide is on the ledger rather than swallowed.
 ///
-/// The declaration is `seatbelt`, which is macOS. On macOS that is provided
-/// and the shortfall list is empty, and a check that refused it would be
-/// measuring the machine rather than the declaration. On Linux the backend is
-/// Landlock, so `seatbelt` is genuinely unavailable and `degrade` is supposed
-/// to start the run and record it: asserting an empty list on both would be
-/// asserting that a Linux host provides a macOS sandbox. The isolation is
-/// still real on that host, which is what makes this a stale declaration in
-/// the tracked policy rather than an unsandboxed run, and the run says so on
-/// `run.open` instead of the suite hiding it.
+/// The declaration was `seatbelt` until the Linux backend arrived, and the
+/// comparison is string equality, so a Landlock host recorded a shortfall
+/// while being fully confined and a profile under `on_unavailable: refuse`
+/// could not start there at all. It now declares `per_run_confinement`, the
+/// property, and both backends provide it, so the expected list is empty on
+/// either platform.
+///
+/// That is not the same as asserting nothing. A Landlock kernel below ABI v4
+/// enforces the filesystem half and nothing about egress, and does not
+/// provide the property; that case is
+/// `a_filesystem_only_backend_does_not_provide_confinement` below, which
+/// needs no such kernel because `unavailable_requirements` takes the observed
+/// backend as an argument.
 #[test]
 fn the_tracked_laptop_profile_starts_and_names_what_it_could_not_provide() {
     let dir = workdir("laptop");
@@ -169,11 +173,7 @@ fn the_tracked_laptop_profile_starts_and_names_what_it_could_not_provide() {
     let policy = Policy::load(&policy_path).unwrap();
     let backend = gantry::sandbox::active_backend();
     let providable = Providable::for_this_build(backend);
-    let expected: Vec<&str> = if backend == "seatbelt" {
-        vec![]
-    } else {
-        vec!["isolation.declared"]
-    };
+    let expected: Vec<&str> = vec![];
     let fields: Vec<String> = unavailable_requirements(&policy.profile_requirements, &providable)
         .iter()
         .map(|s| s.field.clone())
@@ -206,6 +206,68 @@ fn the_tracked_laptop_profile_starts_and_names_what_it_could_not_provide() {
         .unwrap_or_default();
     assert_eq!(recorded, expected, "run.open disagrees with the check");
     assert_eq!(open["isolation"]["active_backend"], backend);
+}
+
+/// The line the property draws, and the reason it is not a rename of the
+/// mechanism it replaced.
+///
+/// `per_run_confinement` means a per-run sandbox holding both the filesystem
+/// and the network. Landlock added TCP bind and connect restrictions in ABI
+/// v4, so `landlock-v1` through `-v3` hold the filesystem half and nothing
+/// about egress: those hosts provide the mechanism by name and not the
+/// property, and a profile asking for confinement is short there. A property
+/// that every backend satisfied would be a word for "something ran", which is
+/// what `present: true` already means and is not worth a schema change.
+///
+/// No such kernel is needed to check it. `unavailable_requirements` takes the
+/// observed backend as an argument and reads no system state, which is the
+/// seam that makes every backend testable from any machine, and is why that
+/// seam exists.
+#[test]
+fn a_filesystem_only_backend_does_not_provide_confinement() {
+    let requirements = json!({
+        "isolation": { "declared": "per_run_confinement" },
+        "on_unavailable": "degrade",
+    });
+
+    for backend in ["seatbelt", "landlock-v4"] {
+        let short = unavailable_requirements(&requirements, &Providable::for_this_build(backend));
+        assert!(
+            short.is_empty(),
+            "{backend} confines both halves and must provide the property, got {short:?}"
+        );
+    }
+
+    for backend in ["landlock-v1", "landlock-v2", "landlock-v3", "none"] {
+        let short = unavailable_requirements(&requirements, &Providable::for_this_build(backend));
+        assert_eq!(
+            short.len(),
+            1,
+            "{backend} does not confine the network and must be short, got {short:?}"
+        );
+        assert_eq!(short[0].field, "isolation.declared");
+        // The shortfall names what the host does have, so the reader is told
+        // the filesystem half is in force rather than reading it as no
+        // sandbox at all.
+        assert!(
+            short[0].providable.iter().any(|p| p == backend),
+            "the shortfall does not name the backend actually in force: {short:?}"
+        );
+    }
+
+    // A profile pinning a mechanism still works and is still the stronger
+    // claim: a regulated deployment that means seatbelt and not "whatever
+    // this kernel offers" says seatbelt, and a Landlock host is short.
+    let pinned = json!({
+        "isolation": { "declared": "seatbelt" },
+        "on_unavailable": "degrade",
+    });
+    assert!(unavailable_requirements(&pinned, &Providable::for_this_build("seatbelt")).is_empty());
+    assert_eq!(
+        unavailable_requirements(&pinned, &Providable::for_this_build("landlock-v4")).len(),
+        1,
+        "a profile that pinned seatbelt must not be satisfied by a different backend"
+    );
 }
 
 /// The gateway is the other run open, and a model call under a profile this

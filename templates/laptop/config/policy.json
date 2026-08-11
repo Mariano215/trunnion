@@ -3,7 +3,7 @@
   "profile": "laptop",
   "profile_requirements": {
     "isolation": {
-      "declared": "seatbelt",
+      "declared": "per_run_confinement",
       "observed_by": "sandbox.active_backend",
       "scores": 3
     },

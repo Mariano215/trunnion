@@ -292,7 +292,7 @@ fn report(field: &str, spec: &Value, running: &Running) -> FieldReport {
             out.cause = Some(cause);
             out.fix = Some(fix);
         }
-        Reading::Value(observed) if observed == declared => {
+        Reading::Value(observed) if observed == declared || satisfies(&declared, &observed) => {
             out.observed = Some(observed);
             out.outcome = Outcome::Match;
         }
@@ -309,6 +309,24 @@ fn report(field: &str, spec: &Value, running: &Running) -> FieldReport {
         }
     }
     out
+}
+
+/// Whether an observed value meets a declaration that named a property rather
+/// than a mechanism. Only `per_run_confinement` is such a declaration today,
+/// and the answer comes from `sandbox::confines_filesystem_and_network`, which
+/// is where the ABI knowledge lives.
+///
+/// This does not soften the check into an admission. The prohibited shape is a
+/// field whose observation is derived from the declaration, which is why
+/// `sandbox.egress_allow` is reported `unobservable` rather than compared: it
+/// would agree with itself on every run. Here the observed value is read from
+/// the running kernel and the question asked of it is whether that backend
+/// holds both halves of the property. A Landlock kernel below ABI v4 answers
+/// no and the field diverges, which is the whole point of asking rather than
+/// accepting any non-`none` string.
+fn satisfies(declared: &str, observed: &str) -> bool {
+    declared == crate::sandbox::CONFINEMENT
+        && crate::sandbox::confines_filesystem_and_network(observed)
 }
 
 /// Every field of `profile_requirements`, in the policy document's key order.
@@ -386,5 +404,37 @@ mod tests {
         assert_eq!(r.observed.as_deref(), Some(sandbox::active_backend()));
         let cause = r.cause.unwrap_or_default();
         assert!(cause.contains("microvm") && cause.contains(sandbox::active_backend()));
+    }
+
+    /// A declaration naming a property matches the backend that provides it,
+    /// on whichever platform this runs, and the report still names both values
+    /// so the reader is told which mechanism answered.
+    #[test]
+    fn a_property_declaration_matches_the_backend_that_provides_it() {
+        let spec = json!({
+            "declared": sandbox::CONFINEMENT,
+            "observed_by": "sandbox.active_backend",
+        });
+        let r = report("isolation", &spec, &running());
+        assert_eq!(r.outcome, Outcome::Match);
+        assert_eq!(r.observed.as_deref(), Some(sandbox::active_backend()));
+        assert_eq!(r.declared.as_deref(), Some(sandbox::CONFINEMENT));
+    }
+
+    /// And does not match a backend that holds only half of it. Landlock
+    /// below ABI v4 confines the filesystem and nothing about egress, so a
+    /// profile asking for confinement diverges there rather than being told
+    /// it got what it declared. This is what keeps `satisfies` from being a
+    /// way of agreeing with any string that is not `none`.
+    #[test]
+    fn a_property_declaration_diverges_from_a_filesystem_only_backend() {
+        assert!(!satisfies(sandbox::CONFINEMENT, "landlock-v3"));
+        assert!(!satisfies(sandbox::CONFINEMENT, "none"));
+        assert!(satisfies(sandbox::CONFINEMENT, "landlock-v4"));
+        assert!(satisfies(sandbox::CONFINEMENT, "seatbelt"));
+        // A mechanism declaration is not widened by any of this: it is still
+        // string equality, so a profile that pinned seatbelt is not satisfied
+        // by Landlock.
+        assert!(!satisfies("seatbelt", "landlock-v4"));
     }
 }

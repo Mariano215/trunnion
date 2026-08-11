@@ -21,12 +21,22 @@ pub struct Pred {
     /// Minimum number of matching events (default 1).
     #[serde(default)]
     pub min: Option<u64>,
-    /// Optional subject constraint: the JSON pointer must equal `equals`, or
-    /// (when `present` is set) merely exist and be non-null.
+    /// Optional subject constraint: the JSON pointer must equal `equals`,
+    /// must exist and differ from `not_equals`, or (when `present` is set)
+    /// merely exist and be non-null.
     #[serde(default)]
     pub pointer: Option<String>,
     #[serde(default)]
     pub equals: Option<Value>,
+    /// The pointer exists, is non-null, and is not this value. It is what a
+    /// rule uses to credit a control being in force without naming the
+    /// mechanism that provided it: primitive 05 credits any sandbox that is
+    /// not `none`, because `equals: "seatbelt"` scored a fully confined
+    /// Landlock run at 3 and made the level a statement about which operating
+    /// system ran the workload. `present` is not enough on its own, since
+    /// `none` is present and non-null and would credit an uncontained run.
+    #[serde(default)]
+    pub not_equals: Option<Value>,
     #[serde(default)]
     pub present: Option<bool>,
     /// When true, the event must belong to a run that never sealed (the
@@ -186,6 +196,13 @@ fn pred_matches(
                 if at != *expected {
                     continue;
                 }
+            } else if let Some(excluded) = &pred.not_equals {
+                // Absent counts as not matching, never as "differs from the
+                // excluded value": a subject with no sandbox field at all is
+                // not evidence that a sandbox was in force.
+                if at.is_null() || at == *excluded {
+                    continue;
+                }
             } else if pred.present == Some(true) && at.is_null() {
                 continue;
             }
@@ -259,7 +276,7 @@ mod tests {
                     "primitive": 5, "name": "Execution",
                     "base": { "kind": "tool.request" },
                     "levels": [
-                        { "level": 4, "requires": [{ "kind": "tool.request", "pointer": "/sandbox", "equals": "seatbelt" }], "evidence": "sandboxed" }
+                        { "level": 4, "requires": [{ "kind": "tool.request", "pointer": "/sandbox", "not_equals": "none" }], "evidence": "sandboxed" }
                     ]
                 },
                 {
@@ -321,7 +338,47 @@ mod tests {
             ev("e2", "r1", "tool.request", json!({ "sandbox": "none" })),
         ];
         let snap = rules().score(&events);
-        // p11 -> 4, p5 -> base present but level-4 requires seatbelt (not met) -> 0.
+        // p11 -> 4, p5 -> base present but the sandbox recorded is `none`, so
+        // the level-4 predicate is not met -> 0.
         assert_eq!(snap.overall, Some(0), "a floor of 0 caps the whole");
+    }
+
+    /// `not_equals` credits the control being in force without naming the
+    /// mechanism. The rule was `equals: "seatbelt"`, which scored a fully
+    /// confined Landlock run at 3 and made the level a statement about which
+    /// operating system ran the workload rather than about whether anything
+    /// contained it.
+    #[test]
+    fn a_sandbox_scores_by_being_in_force_and_not_by_its_name() {
+        let level4 = |sandbox: Value| {
+            let events = vec![ev(
+                "e0",
+                "r1",
+                "tool.request",
+                json!({ "sandbox": sandbox }),
+            )];
+            rules()
+                .score(&events)
+                .scores
+                .iter()
+                .find(|p| p.primitive == 5)
+                .unwrap()
+                .score
+        };
+        assert_eq!(level4(json!("seatbelt")), Some(4));
+        assert_eq!(
+            level4(json!("landlock-v4")),
+            Some(4),
+            "a Linux run is contained"
+        );
+        // The two that must not reach 4: an uncontained run, and an event
+        // with no sandbox field at all. Absent is not evidence of a sandbox,
+        // and reading it as "differs from none" would credit every producer
+        // that forgot to record one.
+        assert_ne!(level4(json!("none")), Some(4), "an uncontained run");
+        let missing = vec![ev("e0", "r1", "tool.request", json!({}))];
+        let p5 = rules().score(&missing);
+        let p5 = p5.scores.iter().find(|p| p.primitive == 5).unwrap();
+        assert_ne!(p5.score, Some(4), "no sandbox field is not a sandbox");
     }
 }

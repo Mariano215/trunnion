@@ -46,10 +46,12 @@ indistinguishable from a use and the count would be wrong by one.
 - **No network in tests.** The full suite runs with an empty network
   namespace. This is what keeps the air-gap claim true. — enforced by
   `ci/offline-suite`. Partially mechanised since slice 04: the broker runs
-  every command inside a seatbelt profile that denies all non-allowlisted
-  network, and `tests/sandbox.rs` asserts a sandboxed connection to loopback
-  fails; the suite itself binds loopback listeners only as unreachable
-  targets, never as a real route out.
+  every command inside a per-run sandbox (seatbelt on macOS, Landlock ABI v4
+  on Linux) that denies all non-allowlisted network, and `tests/sandbox.rs`
+  asserts a sandboxed connection to loopback fails on whichever backend the
+  host provides, with an unsandboxed control leg so a host missing `nc`
+  fails loudly rather than passing green; the suite itself binds loopback
+  listeners only as unreachable targets, never as a real route out.
 - **Profiles never lie.** Scores derive from what is running, never from the
   profile name. A scorer that reads configuration instead of telemetry is
   wrong. — enforced since slice 08 by `src/scorer.rs`, whose every predicate
@@ -339,7 +341,31 @@ indistinguishable from a use and the count would be wrong by one.
   which four rather than passing them quietly.
   `[UNENFORCED]` `ci/egress-allowlist-observed`
 - **A profile declares what the machine must provide, and a machine that
-  cannot provide it says so.** Every `profile_requirements` field with an
+  cannot provide it says so. It may declare a property instead of a
+  mechanism, and the property is not satisfied by half of it.** Since slice 23
+  the tracked profiles declare `isolation.declared: per_run_confinement`, a
+  per-run sandbox holding both the filesystem and the network, rather than
+  naming one backend. The field held `seatbelt` and the comparison is string
+  equality, so a Linux host confining a run with Landlock ABI v4 recorded a
+  shortfall it did not have, a `regulated` profile under `refuse` could not
+  start there at all, and `gantry drift` called it a divergence. Landlock
+  added TCP restrictions in v4, so `landlock-v1` through `-v3` provide the
+  mechanism and not the property and are still short, and a host with no
+  backend provides `none` and is short too. A profile that means one
+  mechanism still names it, which is the stronger claim and is not widened by
+  any of this. Both readers ask the same question through
+  `sandbox::confines_filesystem_and_network`, which is where the ABI
+  knowledge lives, and drift asking it is not an admission agreeing with
+  itself: the observed value is read from the running kernel, which is the
+  distinction `sandbox.egress_allow` fails and is reported `unobservable`
+  for. — enforced by `tests/profiles.rs`
+  (`a_filesystem_only_backend_does_not_provide_confinement`, which covers
+  every backend from any machine because `unavailable_requirements` takes the
+  observed backend as an argument and reads no system state) and
+  `src/drift.rs`
+  (`a_property_declaration_matches_the_backend_that_provides_it`,
+  `a_property_declaration_diverges_from_a_filesystem_only_backend`);
+  recorded in `docs/proof/23.md`. Every `profile_requirements` field with an
   availability question (isolation backend, identity source, ledger anchoring,
   key custody) is checked at run open against what the running system can
   provide. Under `on_unavailable: refuse` an unavailable requirement refuses
@@ -421,10 +447,18 @@ indistinguishable from a use and the count would be wrong by one.
   `anchor verified` on a rewritten log. Recorded in `docs/proof/18.md`.
   Nothing dispatches on the profile's declared anchoring kind and nothing
   schedules an anchor. `[UNENFORCED]` `ci/anchor-schedule`
-- **A scoring level credits a control running, never what it found.** A
-  primitive reaches a level because the control carrying it ran, so a ledger
-  where the check passed and a ledger where it failed score the same, and a
-  ledger where it never ran scores lower. The alternative is the defect proof
+- **A scoring level credits a control running, never what it found, and
+  never which mechanism ran it.** A primitive reaches a level because the
+  control carrying it ran, so a ledger where the check passed and a ledger
+  where it failed score the same, and a ledger where it never ran scores
+  lower. Since slice 23 that extends to the mechanism's name: primitive 05
+  required `tool.request./sandbox` to equal `seatbelt`, so a fully confined
+  Linux run scored 3 and the level was a statement about which operating
+  system ran the workload. The predicate is `not_equals: "none"`, a matcher
+  added for this, and it requires the pointer to exist: absent is not
+  evidence of a sandbox, so a producer that stopped recording one loses the
+  level rather than keeping it. — enforced by `src/scorer.rs`
+  (`a_sandbox_scores_by_being_in_force_and_not_by_its_name`) The alternative is the defect proof
   13 records: a rule keyed on a sensor's failure message scored a broken
   repository above a working one, so the way to raise the number was to break
   the check. Since slice 19 primitive 07 reaches 4 from a `policy.decision`

@@ -190,7 +190,27 @@ fn tool_request_records_the_active_backend() {
     assert_eq!(req["sandbox"], backend);
     let open = subject(&led, &events(&led)[0]);
     assert_eq!(open["isolation"]["active_backend"], backend);
-    assert_eq!(open["isolation"]["declared"], "seatbelt");
+    // The declaration is read from the tracked policy for the same reason the
+    // backend above is read from the running system: a literal here would
+    // assert which string that file currently holds rather than the property
+    // under test, which is that run.open repeats the profile's declaration
+    // beside what the machine actually provided. It held "seatbelt" for
+    // nineteen slices and became a property name when the Linux backend
+    // arrived, and this assertion should not have needed editing for that.
+    let declared: Value =
+        serde_json::from_str(&fs::read_to_string(repo_path("config/policy.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        open["isolation"]["declared"],
+        declared["profile_requirements"]["isolation"]["declared"]
+    );
+    // And the run is clean on this host: a profile asking for confinement
+    // gets it from whichever backend is in force, so nothing is short.
+    assert!(
+        open["unavailable"].as_array().is_none_or(|u| u.is_empty()),
+        "the tracked laptop profile records a shortfall on this host: {}",
+        open["unavailable"]
+    );
 }
 
 /// A file write outside the run's workdir fails inside the sandbox even
