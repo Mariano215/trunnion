@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gantry console — workspace</title>
+<style>
+  :root{
+    --ground:#E7E5E0;
+    --plate:#F6F5F2;
+    --plate2:#EFEDE8;
+    --ink:#15171A;
+    --steel:#565E66;
+    --dim:#8A9099;
+    --rule:#CBC7BE;
+    --rule2:#DDD9D1;
+    --hazard:#F0B400;
+    --hazard-ink:#7A5A00;
+    --deny:#A93226;
+    --ok:#2E6B4F;
+
+    --display:"DIN Condensed","Saira Condensed","Archivo Narrow","Avenir Next Condensed",Impact,sans-serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,"IBM Plex Mono",Consolas,monospace;
+
+    --gut:22px;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--ground);color:var(--ink);
+    font-family:var(--sans);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* faint technical grid, never competes with data */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(21,23,26,.028) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(21,23,26,.028) 1px,transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(ellipse 120% 90% at 50% 0%,#000 30%,transparent 82%);
+    -webkit-mask-image:radial-gradient(ellipse 120% 90% at 50% 0%,#000 30%,transparent 82%);
+  }
+
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 var(--gut) 72px}
+
+  /* ---------- provenance bar : what evidence backs the numbers below ---------- */
+  .prov{
+    position:sticky;top:0;z-index:40;
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0 14px;
+    background:var(--ink);color:var(--ground);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+    padding:8px 16px;
+  }
+  .prov b{color:var(--hazard);font-weight:600}
+  .prov .sep{color:#4A4E55}
+
+  /* ---------- masthead ---------- */
+  .mast{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:28px;flex-wrap:wrap;
+    padding:38px 0 18px;border-bottom:1px solid var(--rule);
+  }
+  .mark{
+    font-family:var(--display);font-size:64px;line-height:.82;letter-spacing:.01em;
+    text-transform:uppercase;font-weight:700;margin:0;
+  }
+  .mark span{color:var(--dim)}
+  .tag{color:var(--steel);font-size:13px;margin-top:9px;max-width:56ch}
+  .meta{text-align:right;font-family:var(--mono);font-size:11px;color:var(--steel);line-height:1.9}
+  .meta b{color:var(--ink);font-weight:600}
+
+  /* ---------- eyebrow, used everywhere a section starts ---------- */
+  .eyebrow{
+    font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--steel);margin:0 0 14px;
+  }
+
+  /* ---------- project index ---------- */
+  .index{display:flex;gap:8px;flex-wrap:wrap;padding:22px 0 26px}
+  .chip{
+    appearance:none;cursor:pointer;text-align:left;
+    background:var(--plate);border:1px solid var(--rule);border-radius:0;
+    padding:11px 13px 10px;font:inherit;color:var(--ink);
+    transition:border-color .16s,background .16s,transform .16s;
+  }
+  .chip:hover{border-color:var(--steel);transform:translateY(-1px)}
+  .chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .chip[aria-pressed="true"]{background:var(--ink);color:var(--plate);border-color:var(--ink)}
+  .chip[aria-pressed="true"] .chip-sub{color:#9AA0A8}
+  .chip-name{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;display:block}
+  /* a 12-tick profile. Height is the level. Hazard is reserved for the focused chart,
+     so yellow keeps meaning one thing on this page; the count below carries the floor. */
+  .chip-ticks{display:flex;align-items:flex-end;gap:2px;height:14px;margin:8px 0 6px}
+  .chip-ticks i{display:block;width:5px;height:2px;background:var(--rule);border-radius:0}
+  .chip-ticks i[data-v="2"]{height:9px;background:var(--steel)}
+  .chip-ticks i[data-v="3"]{height:14px;background:var(--ink)}
+  .chip[aria-pressed="true"] .chip-ticks i{background:#4A4E55}
+  .chip[aria-pressed="true"] .chip-ticks i[data-v="2"]{background:#9AA0A8}
+  .chip[aria-pressed="true"] .chip-ticks i[data-v="3"]{background:var(--plate)}
+  .chip-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+
+  /* ---------- panels ---------- */
+  .panel{background:var(--plate);border:1px solid var(--rule);margin-bottom:var(--gut);position:relative}
+  .panel-hd{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    padding:15px 20px 13px;border-bottom:1px solid var(--rule2);
+  }
+  .panel-hd .eyebrow{margin:0}
+  .panel-note{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+
+  /* ---------- the rail chart : the signature ---------- */
+  .chartwrap{padding:30px 26px 0;display:flex;gap:14px}
+  .yaxis{
+    position:relative;width:14px;flex:0 0 14px;height:260px;
+    font-family:var(--mono);font-size:10px;color:var(--dim);
+  }
+  .yaxis span{position:absolute;right:0;transform:translateY(50%);line-height:1}
+  .chart{position:relative;flex:1;height:260px;border-bottom:2px solid var(--ink)}
+
+  .gridline{position:absolute;left:0;right:0;height:1px;background:var(--rule2)}
+
+  /* the band a static read cannot enter. Stated in prose at src/scan.rs:710; drawn here. */
+  .ceiling{
+    position:absolute;left:0;right:0;bottom:60%;top:0;
+    background:repeating-linear-gradient(-45deg,
+      rgba(21,23,26,.03) 0 1px, transparent 1px 10px);
+    border-bottom:1px dashed var(--rule);
+  }
+  .ceiling b{
+    position:absolute;right:2px;top:6px;
+    font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--dim);font-weight:400;
+  }
+
+  /* 12 columns, shared by the bars, the anchor gutter and the axis */
+  .track{display:grid;grid-template-columns:repeat(12,1fr);gap:6px}
+
+  .cols{position:absolute;inset:0;align-items:end}
+  .col{position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end}
+  .bar{
+    width:min(100%,38px);margin:0 auto;background:var(--ink);
+    height:calc(var(--v) / 5 * 100%);
+    transform-origin:50% 100%;position:relative;
+  }
+  .bar b{
+    position:absolute;left:-20px;right:-20px;top:-18px;text-align:center;
+    font-family:var(--mono);font-size:11px;color:var(--steel);font-weight:600;
+  }
+  /* a floor primitive is load-bearing. Above zero it draws hazard; at zero there is no
+     bar to draw at all, and the anchor gutter below the line carries it instead. */
+  .col[data-floor="1"] .bar{background:var(--hazard)}
+  .col[data-floor="1"] .bar::after{
+    content:"";position:absolute;inset:0;
+    background:repeating-linear-gradient(-45deg,rgba(21,23,26,.42) 0 2px,transparent 2px 6px);
+  }
+  .col[data-floor="1"] .bar b{color:var(--hazard-ink)}
+
+  /* the rail rests on the shortest bar. That is the overall level. */
+  .rail{
+    position:absolute;left:-8px;right:-8px;height:5px;background:var(--ink);
+    bottom:calc(var(--min) / 5 * 100%);z-index:3;
+  }
+  .rail::after{
+    content:attr(data-label);position:absolute;right:0;bottom:7px;z-index:4;
+    background:var(--plate);padding:2px 7px 1px;
+    font-family:var(--display);font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);
+  }
+
+  /* ---------- anchor gutter : what is holding the rail down ---------- */
+  .gutter{
+    margin:0 26px;padding-left:28px;
+  }
+  .gutter .track{height:30px;align-items:start}
+  .anchor{height:100%;position:relative}
+  .anchor[data-floor="1"]::before{
+    content:"";position:absolute;left:50%;transform:translateX(-50%);top:0;
+    width:min(100%,38px);height:100%;
+    background:var(--hazard);
+    -webkit-mask-image:linear-gradient(#000,transparent);
+    mask-image:linear-gradient(#000,transparent);
+  }
+  .anchor[data-floor="1"]::after{
+    content:"";position:absolute;left:50%;transform:translateX(-50%);top:0;
+    width:min(100%,38px);height:100%;
+    background:repeating-linear-gradient(-45deg,rgba(21,23,26,.42) 0 2px,transparent 2px 6px);
+    -webkit-mask-image:linear-gradient(#000,transparent);
+    mask-image:linear-gradient(#000,transparent);
+  }
+
+  .xaxis{margin:2px 26px 0;padding-left:28px}
+  .xaxis span{display:block;text-align:center}
+  .xaxis .n{
+    font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.06em;
+  }
+  .xaxis .nm{
+    font-family:var(--display);font-size:13px;color:var(--steel);
+    text-transform:uppercase;letter-spacing:.02em;line-height:1.15;margin-top:2px;
+  }
+  .xaxis span[data-floor="1"] .n,.xaxis span[data-floor="1"] .nm{color:var(--hazard-ink);font-weight:700}
+
+  .verdict{
+    padding:0 20px 22px;margin-top:6px;
+    display:flex;gap:12px;align-items:flex-start;
+  }
+  .verdict i{display:block;flex:0 0 10px;height:10px;background:var(--hazard);margin-top:5px}
+  .verdict p{margin:0;font-size:14.5px;color:var(--ink);max-width:74ch}
+  .verdict p b{font-weight:600}
+  .verdict em{font-style:normal;color:var(--steel)}
+
+  /* ---------- twelve rows ---------- */
+  .rows{padding:4px 0 6px}
+  .row{
+    display:grid;grid-template-columns:34px 1fr 30px;gap:14px;align-items:start;
+    padding:12px 20px;border-bottom:1px solid var(--rule2);
+  }
+  .row:last-child{border-bottom:0}
+  .row-n{font-family:var(--mono);font-size:11px;color:var(--dim);padding-top:2px}
+  .row-name{
+    font-family:var(--display);font-size:19px;text-transform:uppercase;letter-spacing:.015em;
+    line-height:1.1;margin:0 0 3px;
+  }
+  .row-ev{font-family:var(--mono);font-size:11.5px;color:var(--steel);line-height:1.65;margin:0;word-break:break-word}
+  .row-gap{font-size:12.5px;color:var(--ink);margin:5px 0 0;max-width:78ch}
+  .row-gap b{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--hazard-ink);font-weight:600;margin-right:8px}
+  .row-v{
+    font-family:var(--display);font-size:30px;line-height:1;text-align:right;color:var(--ink);
+  }
+  .row[data-floor="1"]{background:linear-gradient(90deg,rgba(240,180,0,.14),transparent 62%)}
+  .row[data-floor="1"] .row-v{color:var(--hazard-ink)}
+
+  /* ---------- lift order ---------- */
+  .lift{padding:16px 20px 20px}
+  .lift ol{margin:0;padding:0;list-style:none;counter-reset:lift}
+  .lift li{
+    counter-increment:lift;display:grid;grid-template-columns:26px 1fr;gap:14px;
+    padding:11px 0;border-bottom:1px solid var(--rule2);
+  }
+  .lift li:last-child{border-bottom:0}
+  .lift li::before{
+    content:counter(lift);font-family:var(--mono);font-size:11px;color:var(--plate);
+    background:var(--ink);width:20px;height:20px;display:grid;place-items:center;margin-top:1px;
+  }
+  .lift h4{margin:0 0 3px;font-family:var(--display);font-size:17px;text-transform:uppercase;letter-spacing:.015em}
+  .lift p{margin:0;font-size:12.5px;color:var(--steel);max-width:80ch}
+  .lift code{font-family:var(--mono);font-size:11.5px;background:var(--plate2);padding:1px 5px;color:var(--ink)}
+
+  /* ---------- chain : empty until instrumented ---------- */
+  .chain{padding:18px 20px 22px}
+  .chain-empty{display:flex;gap:14px;align-items:flex-start}
+  .chain-empty i{
+    display:block;flex:0 0 44px;height:44px;border:1px dashed var(--rule);
+    background:repeating-linear-gradient(-45deg,var(--rule2) 0 1px,transparent 1px 8px);
+  }
+  .chain-empty p{margin:0;font-size:13.5px;color:var(--steel);max-width:70ch}
+  .chain-empty p b{color:var(--ink);font-weight:600;display:block;margin-bottom:3px}
+  .chain-empty code{
+    font-family:var(--mono);font-size:12px;background:var(--ink);color:var(--plate);
+    padding:3px 8px;display:inline-block;margin-top:9px;
+  }
+
+  /* non-agentic signal */
+  .nonagentic{
+    display:none;margin:0 20px 18px;padding:12px 14px;
+    border-left:3px solid var(--steel);background:var(--plate2);
+    font-size:13px;color:var(--steel);
+  }
+  .nonagentic b{color:var(--ink)}
+  .panel[data-nonagentic="1"] .nonagentic{display:block}
+
+  footer{
+    display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;
+    padding:26px 0 0;border-top:1px solid var(--rule);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+  }
+
+  /* ---------- staged assembly. Pure CSS, so the frame paints with scripting off. ---------- */
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @keyframes grow{from{transform:scaleY(0)}to{transform:none}}
+  @keyframes settle{
+    from{opacity:0;transform:translateY(-190px)}
+    72%{opacity:1;transform:translateY(4px)}
+    100%{opacity:1;transform:none}
+  }
+  @keyframes hairline{0%{width:0;opacity:1}70%{width:100%;opacity:1}100%{width:100%;opacity:0}}
+
+  .mast  {animation:rise .9s .05s cubic-bezier(.16,.8,.28,1) both}
+  .index {animation:rise .9s .30s cubic-bezier(.16,.8,.28,1) both}
+  .panel {animation:rise .9s cubic-bezier(.16,.8,.28,1) both}
+  .panel:nth-of-type(1){animation-delay:.46s}
+  .panel:nth-of-type(2){animation-delay:.60s}
+  .panel:nth-of-type(3){animation-delay:.70s}
+  .panel:nth-of-type(4){animation-delay:.78s}
+  footer {animation:rise .9s .88s cubic-bezier(.16,.8,.28,1) both}
+
+  .panel::before{
+    content:"";position:absolute;left:0;top:-1px;height:1px;width:0;background:var(--ink);
+    animation:hairline 1s cubic-bezier(.2,.8,.2,1) both;animation-delay:inherit;
+  }
+
+  /* bars grow, then the rail drops and comes to rest on the shortest one */
+  .bar{animation:grow .5s cubic-bezier(.2,.8,.2,1) both}
+  .col:nth-child(1) .bar{animation-delay:.80s}
+  .col:nth-child(2) .bar{animation-delay:.84s}
+  .col:nth-child(3) .bar{animation-delay:.88s}
+  .col:nth-child(4) .bar{animation-delay:.92s}
+  .col:nth-child(5) .bar{animation-delay:.96s}
+  .col:nth-child(6) .bar{animation-delay:1.00s}
+  .col:nth-child(7) .bar{animation-delay:1.04s}
+  .col:nth-child(8) .bar{animation-delay:1.08s}
+  .col:nth-child(9) .bar{animation-delay:1.12s}
+  .col:nth-child(10).bar,.col:nth-child(10) .bar{animation-delay:1.16s}
+  .col:nth-child(11) .bar{animation-delay:1.20s}
+  .col:nth-child(12) .bar{animation-delay:1.24s}
+  .rail{animation:settle 1.05s 1.34s cubic-bezier(.3,1.3,.5,1) both}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none!important;transition:none!important}
+    .panel::before{width:100%;opacity:0}
+  }
+
+  @media (max-width:860px){
+    .mark{font-size:46px}
+    .meta{text-align:left}
+    .chartwrap{padding-left:12px;padding-right:12px}
+    .xaxis span{font-size:12px}
+    .row{grid-template-columns:28px 1fr 26px;gap:10px;padding:12px}
+    .row-v{font-size:24px}
+  }
+  @media (max-width:640px){
+    .index{display:grid;grid-template-columns:1fr}
+    .chartwrap{padding:24px 12px 0}
+    .gutter,.xaxis{margin-left:12px;margin-right:12px;padding-left:22px}
+    .track{gap:3px}
+    .xaxis .nm{display:none}
+    .xaxis .n{font-size:9px}
+    .yaxis{width:12px;flex-basis:12px}
+    .rail::after{font-size:12px}
+  }
+</style>
+</head>
+<body>
+
+<div class="prov" id="prov">
+  <span><b>Static scan</b></span><span class="sep">//</span>
+  <span>Ceiling 3</span><span class="sep">//</span>
+  <span id="provTel">No telemetry</span><span class="sep">//</span>
+  <span id="provN">5 projects</span><span class="sep">//</span>
+  <span>Read only</span>
+</div>
+
+<div class="wrap">
+
+  <header class="mast">
+    <div>
+      <h1 class="mark">Gantry<span>.</span></h1>
+      <p class="tag">Twelve primitives, a path behind every number. The overall level is the
+        minimum across them, never the average.</p>
+    </div>
+    <div class="meta">
+      <div>workspace <b id="mCount">5 projects</b></div>
+      <div>last scan <b id="mScan">14:22Z</b></div>
+      <div>rules <b>spec 0.2.0-draft</b></div>
+    </div>
+  </header>
+
+  <nav class="index" id="index" aria-label="Projects"></nav>
+
+  <!-- ============ the rail chart ============ -->
+  <section class="panel" id="chartPanel">
+    <div class="panel-hd">
+      <p class="eyebrow" id="chartTitle">Profile — gantry</p>
+      <p class="panel-note" id="chartNote">/Volumes/T7/Projects/gantry</p>
+    </div>
+
+    <div class="nonagentic" id="nonagentic"></div>
+
+    <div class="chartwrap">
+      <div class="yaxis" id="yaxis"></div>
+      <div class="chart" id="chart">
+        <div class="ceiling"><b>Telemetry required</b></div>
+        <div class="gridline" style="bottom:20%"></div>
+        <div class="gridline" style="bottom:40%"></div>
+        <div class="gridline" style="bottom:60%"></div>
+        <div class="cols track" id="cols"></div>
+        <div class="rail" id="rail" data-label="Overall 0"></div>
+      </div>
+    </div>
+    <div class="gutter"><div class="track" id="gutter"></div></div>
+    <div class="xaxis"><div class="track" id="xaxis"></div></div>
+
+    <div class="verdict">
+      <i></i>
+      <p id="verdict"></p>
+    </div>
+  </section>
+
+  <!-- ============ twelve rows ============ -->
+  <section class="panel">
+    <div class="panel-hd">
+      <p class="eyebrow">Evidence</p>
+      <p class="panel-note">one path behind every number, or the list of paths that held nothing</p>
+    </div>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <!-- ============ lift order ============ -->
+  <section class="panel">
+    <div class="panel-hd">
+      <p class="eyebrow">Lift order</p>
+      <p class="panel-note">ranked by business risk, then by the order that unblocks the most</p>
+    </div>
+    <div class="lift"><ol id="lift"></ol></div>
+  </section>
+
+  <!-- ============ chain ============ -->
+  <section class="panel">
+    <div class="panel-hd">
+      <p class="eyebrow">Chain</p>
+      <p class="panel-note">append only, signed head, verifiable offline</p>
+    </div>
+    <div class="chain">
+      <div class="chain-empty">
+        <i></i>
+        <p>
+          <b>No ledger. Static evidence only.</b>
+          A file says a check is wired. Only a run says it fired. Route this project through
+          the gateway and the broker and every tool call, policy verdict and approval lands in
+          a tamper-evident log — which is the only way any primitive here moves above 3.
+          <code>gantry instrument gantry</code>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Gantry &nbsp;·&nbsp; Apache 2.0 &nbsp;·&nbsp; local, read only, no network</span>
+    <span>Minimum rule enforced &nbsp;·&nbsp; static ceiling 3</span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var NAMES = ["Instruction","Context delivery","Context management","Tool interface",
+    "Execution environment","Durable state","Orchestration","Sub-agents","Skills",
+    "Verification","Observability","Governance"];
+  var SHORT = ["Instr","Ctx del","Ctx mgmt","Tools","Exec env","Durable","Orch",
+    "Sub-agt","Skills","Verify","Observ","Gov"];
+
+  // A static read resolves three states only: 0, 2 and 3. It awards no 1, because habits
+  // leave no file. So the next reachable level from the floor is 2, not floor+1.
+  function nextLevel(floor){ return floor === 0 ? 2 : floor + 1; }
+
+  function andList(a){
+    if(a.length === 1) return a[0];
+    return a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+  }
+
+  // Real output of `gantry scan` against these five repositories, 2026-08-11.
+  var LOOKED = {
+    3:"looked in graphify-out/, retrieval.json, embeddings/, vectorstore/, .rag/, .index/: found nothing",
+    4:"looked in .mcp.json, .cursor/mcp.json, tools/, config/tools/, openapi.json, openapi.yaml: found nothing",
+    8:"looked in .claude/agents/, agents/, .claude/subagents/: found nothing",
+    11:"looked in logs/, telemetry/, otel-collector.yaml, otel.yaml, .ledger/: found nothing",
+    1:"looked in CLAUDE.md, AGENTS.md, .cursorrules, .cursor/rules/, .github/copilot-instructions.md, instructions/: found nothing",
+    2:"looked in .claude/hooks/, .mcp.json, .cursor/mcp.json: found nothing",
+    5:"looked in Dockerfile, docker-compose.yml, .devcontainer/, sandbox/, .claude/settings.json: found nothing",
+    6:"looked in PLAN.md, docs/PLAN.md, TODO.md, checkpoints/, state/, .claude/state/: found nothing",
+    7:"looked in .claude/settings.json, .claude/hooks/, .github/workflows/: found nothing",
+    9:"looked in .claude/skills/, .claude/commands/, skills/, runbooks/, playbooks/: found nothing",
+    10:"looked in tests/, test/, spec/, __tests__/, src/test/: found nothing",
+    12:"looked in .claude/settings.json, config/policy.json, policy.json, CODEOWNERS, .github/CODEOWNERS: found nothing"
+  };
+  var UNENFORCED = "and no check file names it, so it is an artifact carried by discipline";
+  var WIRED = "a file says the check is wired, only telemetry says it ran";
+
+  var PROJECTS = [
+    { id:"gantry", path:"/Volumes/T7/Projects/gantry",
+      v:[3,2,0,0,3,3,3,0,2,3,0,3],
+      ev:[
+        'found CLAUDE.md, instructions/, and ci/console-render.sh names it (contains "instruction"); '+WIRED,
+        "found .claude/hooks/, "+UNENFORCED,
+        LOOKED[3], LOOKED[4],
+        'found .claude/settings.json, and ci/run.sh names it (contains "sandbox"); '+WIRED,
+        'found docs/PLAN.md, and ci/console-render.sh names it (contains "resume"); '+WIRED,
+        'found .claude/settings.json, .claude/hooks/, .github/workflows/, and .github/workflows/ci.yml names it (contains "gate"); '+WIRED,
+        LOOKED[8],
+        "found .claude/commands/, "+UNENFORCED,
+        'found tests/, and .github/workflows/pages.yml names it (contains "test"); '+WIRED,
+        LOOKED[11],
+        'found .claude/settings.json, config/policy.json, and .github/workflows/pages.yml names it (contains "permission"); '+WIRED
+      ]},
+    { id:"ClaudePaw", path:"/Volumes/T7/Projects/ClaudePaw",
+      v:[2,0,3,0,2,0,3,3,3,0,0,3],
+      ev:[
+        "found CLAUDE.md, AGENTS.md, "+UNENFORCED,
+        LOOKED[2],
+        'found graphify-out/, and package.json names it (contains "compact"); '+WIRED,
+        LOOKED[4],
+        "found .claude/settings.json, "+UNENFORCED,
+        LOOKED[6],
+        'found .claude/settings.json, .github/workflows/, and .claude/settings.json names it (contains "hook"); '+WIRED,
+        'found agents/, and .claude/settings.json names it (contains "agent"); '+WIRED,
+        'found .claude/commands/, and package.json names it (contains "skill"); '+WIRED,
+        LOOKED[10], LOOKED[11],
+        'found .claude/settings.json, and .github/workflows/ci.yml names it (contains "permission"); '+WIRED
+      ]},
+    { id:"claude-harness-core", path:"/Volumes/T7/Projects/claude-harness-core",
+      v:[2,0,0,0,0,0,3,2,2,0,0,0],
+      ev:[
+        "found CLAUDE.md, "+UNENFORCED,
+        LOOKED[2], LOOKED[3], LOOKED[4], LOOKED[5], LOOKED[6],
+        'found .github/workflows/, and .github/workflows/check.yml names it (contains "gate"); '+WIRED,
+        "found agents/, "+UNENFORCED,
+        "found skills/, "+UNENFORCED,
+        LOOKED[10], LOOKED[11], LOOKED[12]
+      ]},
+    { id:"claude-dashboard", path:"/Volumes/T7/Projects/claude-dashboard",
+      v:[0,0,0,0,0,0,0,0,0,0,2,0],
+      ev:[LOOKED[1],LOOKED[2],LOOKED[3],LOOKED[4],LOOKED[5],LOOKED[6],LOOKED[7],LOOKED[8],
+        LOOKED[9],LOOKED[10],"found logs/, "+UNENFORCED,LOOKED[12]]},
+    { id:"harness-kit", path:"/Volumes/T7/Projects/harness-kit",
+      v:[0,0,0,0,0,0,2,0,0,0,0,0],
+      ev:[LOOKED[1],LOOKED[2],LOOKED[3],LOOKED[4],LOOKED[5],LOOKED[6],
+        "found .github/workflows/, "+UNENFORCED,
+        LOOKED[8],LOOKED[9],LOOKED[10],LOOKED[11],LOOKED[12]]}
+  ];
+
+  // What to create when a primitive is at 0, named from the paths that probe actually reads.
+  // In the shipped console this comes from contracts.yaml so the words are the contract's own.
+  var START = [
+    "Write a CLAUDE.md or AGENTS.md stating the rules this repository's agents work under.",
+    "Add a .mcp.json or a .claude/hooks/ entry so context arrives by mechanism, not by paste.",
+    "Add a retrieval or window-accounting artifact — an index under .rag/, a retrieval.json — so context has a budget and stale entries expire.",
+    "Describe the tools an agent may call: a .mcp.json, or an openapi.json with typed inputs.",
+    "Declare where agent commands run: a Dockerfile, a .devcontainer/, or a sandbox setting in .claude/settings.json.",
+    "Give a long task somewhere to survive a crash: a checkpoints/ or state/ directory, or a docs/PLAN.md it writes back to.",
+    "Add a lifecycle gate — a .github/workflows/ job or a hook that blocks on a failing check.",
+    "Define the sub-agent roles and their scopes under .claude/agents/.",
+    "Capture the repeated workflows as skills under .claude/skills/ or .claude/commands/.",
+    "Add tests. A tests/ directory that runs is the whole of this primitive at level 2.",
+    "Send runs somewhere they can be read back: an otel.yaml, a logs/ sink, or a .ledger/.",
+    "State the policy: a config/policy.json, a CODEOWNERS, or permissions in .claude/settings.json."
+  ];
+
+  // Grounded in what the probe looked for. It never invents a requirement.
+  function gapFor(i, score){
+    if(score === 0) return "Nothing on disk at any path this probe reads. " + START[i];
+    if(score === 2) return "The artifact is there and nothing fails when someone ignores it. "
+      + "Name it in a check that runs — CI, a hook, a pre-commit — and it reaches 3.";
+    return "";
+  }
+
+  // spec 0.2.0-draft section 2.2. Execution environment first by severity; then the
+  // ablation-derived order; anything unlisted falls after, in primitive order.
+  var ORDER = [5,4,3,6,7,1];
+  function liftOrder(v){
+    var floor = Math.min.apply(null, v);
+    var at = [];
+    for(var i=0;i<12;i++) if(v[i] === floor) at.push(i+1);
+    at.sort(function(a,b){
+      var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+      if(ia === -1) ia = 90 + a;
+      if(ib === -1) ib = 90 + b;
+      return ia - ib;
+    });
+    return at;
+  }
+
+  var $ = function(s){ return document.querySelector(s); };
+  var current = 0;
+
+  /* ---------- project index ---------- */
+  (function buildIndex(){
+    var nav = $("#index");
+    PROJECTS.forEach(function(p, n){
+      var floor = Math.min.apply(null, p.v);
+      var b = document.createElement("button");
+      b.className = "chip";
+      b.type = "button";
+      b.setAttribute("aria-pressed", n === 0 ? "true" : "false");
+      var ticks = p.v.map(function(v){
+        return '<i data-v="'+v+'"'+(v === floor ? ' data-floor="1"' : '')+'></i>';
+      }).join("");
+      var nAt = p.v.filter(function(v){ return v === floor; }).length;
+      b.innerHTML =
+        '<span class="chip-name">'+p.id+'</span>' +
+        '<span class="chip-ticks">'+ticks+'</span>' +
+        '<span class="chip-sub">'+nAt+' at floor · overall '+floor+'</span>';
+      b.addEventListener("click", function(){ select(n); });
+      nav.appendChild(b);
+    });
+    $("#mCount").textContent = PROJECTS.length + " projects";
+    $("#provN").textContent = PROJECTS.length + " projects";
+  })();
+
+  /* ---------- y axis ---------- */
+  (function buildY(){
+    var y = $("#yaxis");
+    for(var v = 0; v <= 5; v++){
+      var s = document.createElement("span");
+      s.textContent = v;
+      s.style.bottom = (v / 5 * 100) + "%";
+      y.appendChild(s);
+    }
+  })();
+
+  function select(n){
+    current = n;
+    var p = PROJECTS[n];
+    var floor = Math.min.apply(null, p.v);
+    var atFloor = [];
+    for(var i = 0; i < 12; i++) if(p.v[i] === floor) atFloor.push(i);
+
+    document.querySelectorAll(".chip").forEach(function(c, i){
+      c.setAttribute("aria-pressed", i === n ? "true" : "false");
+    });
+
+    $("#chartTitle").textContent = "Profile — " + p.id;
+    $("#chartNote").textContent = p.path;
+
+    // a repository that carries almost no agent artifact is not a failing agent platform.
+    // Say how many probes actually came back empty rather than rounding it to "none".
+    var zeros = p.v.filter(function(v){ return v === 0; }).length;
+    var nonAgentic = zeros >= 10;
+    $("#chartPanel").setAttribute("data-nonagentic", nonAgentic ? "1" : "0");
+    if(nonAgentic){
+      var WORD = {10:"Ten",11:"Eleven",12:"All twelve"};
+      $("#nonagentic").innerHTML =
+        '<b>Little or no agentic surface.</b> ' + WORD[zeros] + ' of the twelve probes found '
+        + 'nothing on disk. That is what a repository which does not run agents looks like, not a '
+        + 'failing one. Confirm the project is meant to be agentic before reading anything into '
+        + 'the floor — a score measures nothing until there is something to measure.';
+    }
+
+    // columns, anchor gutter and axis all ride the same 12-track grid
+    var cols = $("#cols"), gutter = $("#gutter"), xaxis = $("#xaxis");
+    cols.innerHTML = ""; gutter.innerHTML = ""; xaxis.innerHTML = "";
+    p.v.forEach(function(v, i){
+      var isFloor = v === floor;
+      var f = isFloor ? "1" : "0";
+
+      var col = document.createElement("div");
+      col.className = "col";
+      col.setAttribute("data-floor", f);
+      col.innerHTML = '<div class="bar" style="--v:'+v+'"><b>'+v+'</b></div>';
+      cols.appendChild(col);
+
+      var a = document.createElement("div");
+      a.className = "anchor";
+      a.setAttribute("data-floor", f);
+      gutter.appendChild(a);
+
+      var x = document.createElement("span");
+      x.setAttribute("data-floor", f);
+      x.innerHTML = '<span class="n">'+String(i+1).padStart(2,"0")+'</span>' +
+                    '<span class="nm">'+SHORT[i]+'</span>';
+      x.title = NAMES[i];
+      xaxis.appendChild(x);
+    });
+
+    var rail = $("#rail");
+    rail.style.setProperty("--min", floor);
+    rail.setAttribute("data-label", "Overall " + floor);
+
+    // verdict
+    var listed = andList(atFloor.map(function(i){ return NAMES[i].toLowerCase(); }));
+    var next = nextLevel(floor);
+    $("#verdict").innerHTML = nonAgentic
+      ? '<b>' + zeros + ' of twelve probes came back empty.</b> <em>The floor here is mostly the '
+        + 'absence of a subject, not a judgement of one. Nothing needs lifting until the project '
+        + 'runs agents.</em>'
+      : '<b>' + atFloor.length + (atFloor.length === 1 ? ' primitive holds' : ' primitives hold')
+        + ' the rail at ' + floor + ':</b> ' + listed + '. '
+        + '<em>Raising any one alone moves nothing — the overall level is the minimum, so all '
+        + atFloor.length + ' have to reach ' + next + ' before the rail lifts.</em>';
+
+    // twelve rows
+    var rows = $("#rows");
+    rows.innerHTML = "";
+    p.v.forEach(function(v, i){
+      var isFloor = v === floor;
+      var gap = gapFor(i, v);
+      var r = document.createElement("div");
+      r.className = "row";
+      r.setAttribute("data-floor", isFloor ? "1" : "0");
+      r.innerHTML =
+        '<div class="row-n">'+String(i+1).padStart(2,"0")+'</div>' +
+        '<div>' +
+          '<h3 class="row-name">'+NAMES[i]+'</h3>' +
+          '<p class="row-ev">'+p.ev[i]+'</p>' +
+          (gap ? '<p class="row-gap"><b>Gap</b>'+gap+'</p>' : '') +
+        '</div>' +
+        '<div class="row-v">'+v+'</div>';
+      rows.appendChild(r);
+    });
+
+    // lift order
+    var lift = $("#lift");
+    lift.innerHTML = "";
+    liftOrder(p.v).forEach(function(pn){
+      var i = pn - 1;
+      var li = document.createElement("li");
+      li.innerHTML =
+        '<div>' +
+          '<h4>'+NAMES[i]+'</h4>' +
+          '<p>Raise from '+p.v[i]+' to '+nextLevel(floor)+'. '+gapFor(i, p.v[i])+
+          ' <code>gantry project remediate '+p.id+' --primitive '+pn+'</code></p>' +
+        '</div>';
+      lift.appendChild(li);
+    });
+  }
+
+  select(0);
+
+  $("#mScan").textContent = (function(){
+    var d = new Date();
+    return String(d.getUTCHours()).padStart(2,"0") + ":" +
+           String(d.getUTCMinutes()).padStart(2,"0") + "Z";
+  })();
+})();
+</script>
+</body>
+</html>
