@@ -285,6 +285,26 @@ indistinguishable from a use and the count would be wrong by one.
   enforced by `ci/console-render.sh`, run by `ci/run.sh` on every push; proved
   able to fail by renaming `fired`, `earned_rung`, `_attestation_state` and
   `_attestation_trust` in turn, and recorded in `docs/proof/11.md`
+- **A console with no ledger is not a console with a broken one.** `gantry
+  console` with no ledger directory answers the workspace routes and 404s
+  every ledger route, and the front end reads that 404 as "there is no log
+  here" rather than as "the log here is damaged". The second takes the
+  interface over, and until slice 22 any failure to read `/api/verify` did,
+  so the first screen of a workspace console was a verification alarm about a
+  log that does not exist. The workspace view is what answers there: the
+  project index, the twelve primitives as a rail resting on the minimum, the
+  evidence behind every number, and the remediation queue in the contracts'
+  own words and in the order `/api/projects/:id/remediate` returns, because a
+  front end that ranked the queue would be prescribing a level. The band a
+  static read cannot enter is drawn from the ceiling the API reports, so a 3
+  is never presentable as a 5. — enforced by `ci/console-render.sh`, which
+  registers this repository into a throwaway registry, serves it with no
+  ledger, and asserts the rail, the floor count, an evidence sentence, the
+  first queued brief and its gap against values read from `gantry project
+  scan` and `gantry project remediate` at check time; proved able to fail by
+  renaming the rail's label and by disabling the 404 branch in
+  `recordVerifyError`, which takes every workspace assertion with it.
+  Recorded in `docs/proof/22.md`
 - **A declared value is observed or the gap is reported, never assumed.**
   `gantry drift` walks `profile_requirements`, reads each `observed_by`
   source from the running system and appends one `drift.report` per field on

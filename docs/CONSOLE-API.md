@@ -26,6 +26,69 @@ parallel without meeting in the middle.
 - **Unknown `/api/*` paths are 404 with a Fault body.** Unknown non-API paths
   serve the console shell, so the front end owns its own routing.
 
+- **The workspace routes answer without a ledger.** `gantry console` with no
+  ledger directory serves `/api/projects` and `/api/projects/:id/*` and
+  answers 404 with a Fault on every ledger route, because a static scan reads
+  a tree and a tree needs no log. The front end reads that 404 as "there is no
+  log here", never as "the log here is damaged": the second is an alarm and
+  takes the interface over, the first is a console doing the job it was
+  started for.
+
+## `GET /api/projects`
+
+Every registered project with the shape of its last scan. The scan runs on the
+request rather than being read from a stored result, because a number from
+last week describes a tree that has since moved and this page is read as
+current by whoever has it open.
+
+```json
+{
+  "ceiling": 3,
+  "projects": [
+    {
+      "id": "gantry",
+      "risk": "internal",
+      "source": "/Volumes/T7/Projects/gantry",
+      "path": "/Volumes/T7/Projects/gantry",
+      "last_scan": null,
+      "ledger": null,
+      "readable": true,
+      "overall": 0,
+      "scores": [3, 2, 0, 0, 3, 3, 3, 0, 2, 3, 0, 3],
+      "at_floor": 4
+    }
+  ]
+}
+```
+
+A project whose tree cannot be read is one row carrying `"readable": false`
+with `cause` and `fix` in place of the scores, never a failed response: a
+stale path on one project must not hide the eleven behind it. `ceiling` is the
+level a static read cannot exceed, and the chart draws the band from it rather
+than from a constant in the stylesheet.
+
+## `GET /api/projects/:id/scan`
+
+The full `ScanReport` for one project, plus `id`, `risk` and `ceiling`.
+`findings` is twelve entries of `{primitive, name, score, evidence, gap}`.
+`evidence` is the artifact found and the check file that names it, or the list
+of every path looked in that came back empty. `gap` is what would move the
+number, and it is empty at the ceiling, because nothing added to the tree
+moves a number telemetry alone can raise.
+
+## `GET /api/projects/:id/remediate`
+
+The remediation queue in harness-kit's own words: `document` is the printable
+brief and `gaps` is the ranked list of
+`{primitive, key, name, current, target, gap}`. The order is the contracts'
+remediation rank, computed here. The console renders it and sorts nothing: a
+front end that ordered the work would be prescribing a level, which is the one
+thing gantry does not do.
+
+An unknown id is 404 with a Fault naming `/api/projects` and
+`gantry project add`. An id carrying a slash is not an id and is refused
+before it reaches the registry.
+
 ## `GET /api/score`
 
 The `ScoreSnapshot` the current scorecard already renders, serialised
@@ -372,6 +435,12 @@ that checks the server.
   page is the oldest matching events, not the newest, because limit and offset
   run over the log in append order, and a view that says "most recent" is
   describing a page nobody is looking at.
+- Rank, order or target the remediation queue itself. The order and the level
+  come from `/api/projects/:id/remediate`, which quotes the contracts; a
+  ranking computed in the browser would be gantry prescribing a level.
+- Read a missing ledger as a broken one. `gantry console` with no ledger
+  directory answers 404 on the ledger routes, and a 404 there is a console
+  without a log, not a log that failed to verify.
 - Offer to approve, promote or append. `/api/approvals` names what is waiting
   and prints the command; the console has no identity story and a button here
   would put a name on the record that nothing stands behind.

@@ -43,8 +43,12 @@ fi
 WORK=$(mktemp -d /tmp/gantry-console-render.XXXXXX)
 L=$WORK/ledger
 TAMPERED=$WORK/tampered
+# The workspace registry this check writes to. Never the operator's own: a
+# check that registered a project in ~/.gantry would cost something to run.
+WS_HOME=$WORK/home
 SERVER=
 BROKEN_SERVER=
+WS_SERVER=
 typeset -A PIDS
 # A failed assertion exits mid-loop, so the browsers still running are cleaned
 # up here rather than at the end of the happy path. A check that leaves
@@ -54,6 +58,7 @@ cleanup() {
   for p in ${(v)PIDS}; do kill $p 2>/dev/null || true; done
   [ -n "$SERVER" ] && kill $SERVER 2>/dev/null
   [ -n "$BROKEN_SERVER" ] && kill $BROKEN_SERVER 2>/dev/null
+  [ -n "$WS_SERVER" ] && kill $WS_SERVER 2>/dev/null
   rm -rf $WORK
 }
 trap cleanup EXIT
@@ -209,6 +214,41 @@ $BIN console $TAMPERED 127.0.0.1:0 > $WORK/broken.log 2>&1 &
 BROKEN_SERVER=$!
 BROKEN_ORIGIN=$(origin_of $WORK/broken.log)
 
+# -- the third server: a workspace, and no ledger at all ----------------------
+#
+# `gantry console` with no ledger directory answers the workspace routes and
+# 404s every ledger route. That 404 is the case worth checking: it means "there
+# is no log here", and a console that read it as "the log here is damaged"
+# would meet an operator with a verification alarm on the first screen of a
+# product whose whole subject is not overstating what the record says.
+#
+# The project registered is this repository, so the expected values come from
+# the same scanner ci/scan-evidence runs, read through the CLI rather than
+# through the route under test.
+GANTRY_HOME=$WS_HOME $BIN project add . --id gantry >/dev/null
+WS_SCAN=$(GANTRY_HOME=$WS_HOME $BIN project scan gantry)
+WS_BRIEF=$(GANTRY_HOME=$WS_HOME $BIN project remediate gantry)
+# The overall level, how many primitives sit on it, and the evidence of one
+# that does: a sentence naming the paths the probe read and came back empty
+# from, which nothing but the scan produces.
+WS_PRIMS=$(print -r -- "$WS_SCAN" | grep -c '^primitive [0-9]')
+WS_OVERALL=$(print -r -- "$WS_SCAN" | awk -F'|' '/^overall /{split($1,a," "); print a[2]}')
+WS_AT_FLOOR=$(print -r -- "$WS_SCAN" | awk -F'|' -v o="$WS_OVERALL" '/^primitive [0-9]/{gsub(/ /,"",$2); if($2==o) n++} END{print n+0}')
+WS_EVIDENCE=$(print -r -- "$WS_SCAN" | awk -F'|' -v o="$WS_OVERALL" '/^primitive [0-9]/{gsub(/ /,"",$2); if($2==o && $3 ~ /looked in/){sub(/^ /,"",$3); print $3; exit}}')
+# The first brief in the queue, and its gap, in the contracts' own words. The
+# console renders this order and computes none of it, so a page that ranked the
+# queue itself would not match the CLI's first entry.
+WS_FIRST=$(print -r -- "$WS_BRIEF" | awk -F'|' '/^1\. primitive /{sub(/^1\. primitive [0-9]+ /,"",$1); sub(/ +$/,"",$1); print $1; exit}')
+WS_GAP=$(print -r -- "$WS_BRIEF" | awk '/^THE GAP$/{getline; sub(/^ +/,""); print; exit}')
+if [ "$WS_PRIMS" -ne 12 ] || [ -z "$WS_OVERALL" ] || [ "$WS_AT_FLOOR" -lt 1 ] || [ -z "$WS_EVIDENCE" ] || [ -z "$WS_FIRST" ] || [ -z "$WS_GAP" ]; then
+  echo "the workspace fixture produced $WS_PRIMS primitives, overall \"$WS_OVERALL\", $WS_AT_FLOOR at the floor, evidence \"$WS_EVIDENCE\", first brief \"$WS_FIRST\" and gap \"$WS_GAP\", so the assertions below would test nothing. Fix: run \"GANTRY_HOME=$WS_HOME $BIN project scan gantry\" and \"... project remediate gantry\" by hand and compare their output against the awk expressions in ci/console-render.sh"
+  exit 1
+fi
+
+GANTRY_HOME=$WS_HOME $BIN console > $WORK/workspace.log 2>&1 &
+WS_SERVER=$!
+WS_ORIGIN=$(origin_of $WORK/workspace.log)
+
 # -- rendering ---------------------------------------------------------------
 #
 # Flags, and why each one is here. The air-gap claim is the reason this list is
@@ -347,8 +387,13 @@ ROUTE[tracefiltered]="trace?f=verdict%3Adeny"; ORIGIN_OF[tracefiltered]=$ORIGIN
 # The detail pane, opened by its own route. A click is unreachable under
 # --dump-dom, and a pane only a click can open is a pane nothing checks.
 ROUTE[tracedetail]="trace/event/$EVENT_ID"; ORIGIN_OF[tracedetail]=$ORIGIN
+# The workspace, served by a console with no ledger at all, and one of its
+# ledger views on the same origin: the first has everything to draw and the
+# second has nothing, and neither may render as a verification failure.
+ROUTE[workspace]="workspace"; ORIGIN_OF[workspace]=$WS_ORIGIN
+ROUTE[noledger]="ledger"; ORIGIN_OF[noledger]=$WS_ORIGIN
 
-ALL=($VIEWS rundetail eventrow holdrow takeover tracefiltered tracedetail)
+ALL=($VIEWS rundetail eventrow holdrow takeover tracefiltered tracedetail workspace noledger)
 WAVE=4
 i=1
 while (( i <= $#ALL )); do
@@ -582,4 +627,28 @@ expect takeover "It cannot be dismissed" "the banner that survives the dismissal
 refute takeover 'The twelve primitives'
 refute takeover 'Attestation coverage'
 
-echo "eight views, four deep-linked routes and the takeover rendered against a $SIZE-event ledger; head, score, events, events/:id, runs, policy, trust, approvals and verify all reached the screen"
+# The workspace: /api/projects, /api/projects/:id/scan and
+# /api/projects/:id/remediate, rendered by a console holding no ledger. Every
+# value below came off the CLI scanner at check time, so a field renamed on
+# either side fails here rather than leaving a blank chart.
+expect workspace "gantry" "the project index names the registered project"
+expect workspace "data-label=\"overall $WS_OVERALL\"" "the rail carries the overall level, which is the minimum and not the average"
+expect workspace "$WS_AT_FLOOR primitive" "the verdict counts the primitives holding the rail down, which only a comparison of all twelve produces"
+expect workspace "$WS_EVIDENCE" "an evidence row prints the paths the probe read, so the scan's own words reached the screen"
+expect workspace "<h4>$WS_FIRST</h4>" "the queue's first entry is the contracts' first entry, so the console ranked nothing itself"
+expect workspace "$WS_GAP" "the brief's gap is quoted rather than paraphrased"
+expect workspace "gantry project remediate gantry --primitive" "each queued entry prints the command that produces its brief"
+# The load-bearing negative, in both directions. A console with no ledger must
+# not present a verification alarm, and must not present a chart as telemetry.
+refute workspace "This ledger failed verification"
+refute workspace "could not be verified"
+expect workspace "telemetry required" "the band a static read cannot enter is drawn, so a 3 is never read as a 5"
+
+# The same console's ledger view: no log to read, said as a fault with a fix
+# rather than as an alarm or as an empty table that looks like a quiet system.
+expect noledger "without a ledger" "a console started with no ledger says so on the view that needs one"
+refute noledger "This ledger failed verification"
+refute noledger "no events match these query parameters" \
+  "an empty result table, which would render a console with no log as a log with no events. Fix: compare the 404 handling in recordVerifyError in assets/api.js against the ledger-route branch in src/console.rs"
+
+echo "nine views, four deep-linked routes, the takeover and a ledgerless workspace rendered against a $SIZE-event ledger and a $WS_PRIMS-primitive scan; head, score, events, events/:id, runs, policy, trust, approvals, verify, projects, projects/:id/scan and projects/:id/remediate all reached the screen"

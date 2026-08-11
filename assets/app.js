@@ -6,6 +6,9 @@
 // log the server reported as broken.
 
 import { api, state, recordVerify, recordVerifyError, ledgerBroken } from '/api.js';
+// The one view that answers without a ledger, and so the landing page of a
+// console started without one.
+const NO_LEDGER_VIEW = 'workspace';
 import { views } from '/views.js';
 import { el, clear, mono, num, panel, stat, table, td, commandBox, errPanel } from '/ui.js';
 
@@ -47,7 +50,8 @@ function parseRoute() {
   const segments = pathPart.split('/').filter(Boolean);
   const query = {};
   for (const [k, v] of new URLSearchParams(queryPart || '')) query[k] = v;
-  const view = segments[0] && views[segments[0]] ? segments[0] : 'overview';
+  const fallback = state.noLedger ? NO_LEDGER_VIEW : 'overview';
+  const view = segments[0] && views[segments[0]] ? segments[0] : fallback;
   return { view, segments, query };
 }
 
@@ -55,6 +59,15 @@ function markNav(view) {
   for (const a of nav.querySelectorAll('a')) {
     if (a.dataset.view === view) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
+    // A console started without a ledger keeps the routes and says which of
+    // them have nothing to read, rather than hiding them: a missing link
+    // reads as a missing feature.
+    a.classList.toggle('is-off', state.noLedger && a.dataset.view !== NO_LEDGER_VIEW);
+    if (state.noLedger && a.dataset.view !== NO_LEDGER_VIEW) {
+      a.title = 'this console was started without a ledger, so this view has no log to read';
+    } else {
+      a.removeAttribute('title');
+    }
   }
 }
 
@@ -148,7 +161,7 @@ function renderTakeover() {
           )),
 
         el('div', { style: 'margin-top:14px' },
-          el('h3', { style: 'font-size:12px; text-transform:lowercase; letter-spacing:.05em; color:var(--fg-dim)' }, 'check this without the server'),
+          el('h3', { style: 'font-family:var(--mono); font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--fg-faint)' }, 'check this without the server'),
           commandBox(v.reproduce || 'the API did not return a reproduce command'))),
 
     el('div', { class: 'takeover-actions' }, again, proceed,
@@ -187,9 +200,12 @@ async function loadHeadChip() {
     valNode.textContent = `${head.size} · ${String(head.root_hash).replace(/^sha256:/, '').slice(0, 10)}`;
     document.getElementById('head-chip').title =
       `signed tree head: size ${head.size}, root ${head.root_hash}, key ${head.key_id}, ts ${head.ts}`;
-  } catch {
-    valNode.textContent = 'unreadable';
-    document.getElementById('head-chip').title = 'the console could not read /api/head';
+  } catch (err) {
+    const none = state.noLedger || err.status === 404;
+    valNode.textContent = none ? 'no ledger' : 'unreadable';
+    document.getElementById('head-chip').title = none
+      ? 'this console was started without a ledger, so there is no signed head to show'
+      : 'the console could not read /api/head';
   }
 }
 
@@ -246,7 +262,7 @@ document.addEventListener('keydown', (e) => {
     case 't': cycleTheme(); break;
     default: {
       const n = Number(e.key);
-      if (n >= 1 && n <= 8) {
+      if (n >= 1 && n <= 9) {
         const link = nav.querySelectorAll('a')[n - 1];
         if (link) location.hash = link.getAttribute('href');
       }
@@ -262,5 +278,5 @@ await runVerify();
 loadHeadChip();
 // Setting the hash fires hashchange, which renders. Only render directly when
 // the hash is already set, so a first paint never happens twice.
-if (!location.hash) location.hash = '#/overview';
+if (!location.hash) location.hash = state.noLedger ? `#/${NO_LEDGER_VIEW}` : '#/overview';
 else await renderRoute();

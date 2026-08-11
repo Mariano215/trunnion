@@ -66,6 +66,12 @@ function qs(params) {
 }
 
 export const api = {
+  // The workspace routes. A console started without a ledger still answers
+  // these, because the question a review opens with is about a set of
+  // repositories and not about one log.
+  projects: () => get('/api/projects'),
+  projectScan: (id) => get(`/api/projects/${encodeURIComponent(id)}/scan`),
+  projectRemediate: (id) => get(`/api/projects/${encodeURIComponent(id)}/remediate`),
   score: () => get('/api/score'),
   head: () => get('/api/head'),
   events: (params) => get(`/api/events${qs(params)}`),
@@ -85,20 +91,33 @@ export const state = {
   faultIds: new Set(), // event ids named in verify.faults
   acknowledged: false, // the takeover was dismissed by a deliberate click
   head: null,
+  noLedger: false,     // this console was started without one
 };
 
 export function recordVerify(body) {
   state.verify = body;
   state.verifyError = null;
+  state.noLedger = false;
   state.faultIds = new Set((body.faults || []).map((f) => f.id).filter(Boolean));
   if (body.ok) state.acknowledged = false;
   return body;
 }
 
+// "There is no log here" and "the log here is damaged" are different states,
+// and only the second is an alarm. A console started with a ledger always has
+// /api/verify as a route, so a 404 on it is the first state and never the
+// second: the workspace answers, the ledger views say what is missing, and the
+// verification takeover stays out of the way.
 export function recordVerifyError(err) {
   state.verify = null;
-  state.verifyError = err;
   state.faultIds = new Set();
+  if (err && err.status === 404) {
+    state.noLedger = true;
+    state.verifyError = null;
+    return;
+  }
+  state.noLedger = false;
+  state.verifyError = err;
 }
 
 // The only two questions the rest of the console asks about verification.

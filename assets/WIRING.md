@@ -77,7 +77,12 @@ reached through module imports.
   guessing (for example an unreadable `/api/events/:id` renders as "position
   unavailable", never as a fabricated index).
 - `/api/verify` is read before any view mounts. A body with `ok: false`, and a
-  read that fails outright, both take the interface over.
+  read that fails outright, both take the interface over. A 404 does not: that
+  is a console started without a ledger, and it lands on the workspace view
+  with the ledger routes marked as having no log to read. "There is no log
+  here" and "the log here is damaged" are different states, and rendering the
+  first as the second would put an alarm on a console doing exactly what it
+  was started to do.
 
 ## Not embedded
 
