@@ -16,6 +16,7 @@ pub mod secrets;
 pub mod sensor;
 pub mod skills;
 pub mod trust;
+pub mod workspace;
 
 use std::fmt;
 

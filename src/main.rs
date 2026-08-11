@@ -13,6 +13,7 @@ use gantry::scorer::Scoring;
 use gantry::sensor::{Sensor, SensorRun, Verdict};
 use gantry::skills::SkillManifest;
 use gantry::trust::Orchestrator;
+use gantry::workspace::{self, Project, Risk, Workspace};
 use gantry::Fault;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -55,6 +56,10 @@ const USAGE: &str = "usage:
   gantry graph compare <graph.json> <symbol> <file>...
   gantry scan <repo-dir>                            (read-only, writes nothing)
   gantry scan-keys <dir>                            (read-only; fails on a real private key)
+  gantry project add <path-or-url> [--id <id>] [--risk internal|client_facing|regulated]
+  gantry project list
+  gantry project remove <id>
+  gantry project scan [<id>]                        (every project when the id is omitted)
   gantry score <ledger-dir> [scoring.json] [console.html]
   gantry console <ledger-dir> [127.0.0.1:port]
   gantry skill resolve <ledger-dir> <package-dir> [pubkey-hex]
@@ -446,6 +451,11 @@ fn run() -> Result<i32, Fault> {
             print!("{}", keys.text());
             Ok(if keys.ok() { 0 } else { 1 })
         }
+        ["project", "add", target, flags @ ..] => project_add(target, flags),
+        ["project", "list"] => project_list(),
+        ["project", "remove", id] => project_remove(id),
+        ["project", "scan"] => project_scan(None),
+        ["project", "scan", id] => project_scan(Some(id)),
         ["score", ledger_dir] => score(ledger_dir, "config/scoring.json", None),
         ["score", ledger_dir, rules] => score(ledger_dir, rules, None),
         ["score", ledger_dir, rules, console] => score(ledger_dir, rules, Some(console)),
@@ -1883,6 +1893,143 @@ fn settings_divergence(path: &Path) -> Vec<String> {
         }
         _ => diverged,
     }
+}
+
+/// Register a repository. The flags are parsed here rather than in a match
+/// arm per combination, because `--id` and `--risk` are independent and either
+/// order is the same command.
+fn project_add(target: &str, flags: &[&str]) -> Result<i32, Fault> {
+    let mut id: Option<&str> = None;
+    let mut risk = Risk::default();
+    let mut i = 0;
+    while i < flags.len() {
+        let flag = flags[i];
+        let value = || {
+            flags
+                .get(i + 1)
+                .copied()
+                .ok_or_else(|| usage_fault(format!("{flag} needs a value")))
+        };
+        match flag {
+            "--id" => id = Some(value()?),
+            "--risk" => risk = Risk::parse(value()?)?,
+            other => {
+                return Err(usage_fault(format!(
+                    "{other} is not an option of gantry project add"
+                )))
+            }
+        }
+        i += 2;
+    }
+    let home = workspace::home()?;
+    let mut ws = Workspace::load(&home)?;
+    let project = ws.add(&home, target, id, risk)?;
+    ws.save(&home)?;
+    println!(
+        "registered {} ({}) from {}",
+        project.id,
+        project.risk.as_str(),
+        workspace::source_text(&project.source)
+    );
+    Ok(0)
+}
+
+fn project_list() -> Result<i32, Fault> {
+    let home = workspace::home()?;
+    let ws = Workspace::load(&home)?;
+    if ws.projects.is_empty() {
+        println!(
+            "no projects registered in {}. Add one with gantry project add <path-or-url>",
+            workspace::registry_path(&home).display()
+        );
+        return Ok(0);
+    }
+    for p in &ws.projects {
+        println!(
+            "{:<24} | {:<13} | {} | last scan {}",
+            p.id,
+            p.risk.as_str(),
+            workspace::source_text(&p.source),
+            p.last_scan.as_deref().unwrap_or("never")
+        );
+    }
+    Ok(0)
+}
+
+fn project_remove(id: &str) -> Result<i32, Fault> {
+    let home = workspace::home()?;
+    let mut ws = Workspace::load(&home)?;
+    let removed = ws.remove(id)?;
+    ws.save(&home)?;
+    println!(
+        "removed {} ({})",
+        removed.id,
+        workspace::source_text(&removed.source)
+    );
+    Ok(0)
+}
+
+/// Scan one registered project, or every one of them. This is the same
+/// `scan()` and the same report `gantry scan <dir>` prints, with a heading
+/// naming the project: a workspace-specific report format would be a second
+/// thing to keep true and a second thing to disagree with the first.
+///
+/// A project whose tree cannot be read is one gap in the sweep and not the end
+/// of it, the rule the drift walk follows, so a stale local path does not hide
+/// the eleven projects behind it. The exit status still carries the failure.
+fn project_scan(id: Option<&str>) -> Result<i32, Fault> {
+    let home = workspace::home()?;
+    let mut ws = Workspace::load(&home)?;
+    let targets: Vec<Project> = match id {
+        Some(id) => vec![ws
+            .find(id)
+            .cloned()
+            .ok_or_else(|| Fault::new(
+                format!("the workspace has no project called {id}"),
+                "run gantry project list to see the registered ids, or gantry project add <path-or-url> to register this one",
+            ))?],
+        None => ws.projects.clone(),
+    };
+    if targets.is_empty() {
+        println!(
+            "no projects registered in {}. Add one with gantry project add <path-or-url>",
+            workspace::registry_path(&home).display()
+        );
+        return Ok(0);
+    }
+    let mut failed = 0;
+    for project in &targets {
+        let dir = ws.checkout(&home, project);
+        println!(
+            "== project {} ({}) | {} ==",
+            project.id,
+            project.risk.as_str(),
+            workspace::source_text(&project.source)
+        );
+        match gantry::scan::RepoRead::open(&dir) {
+            Ok(repo) => {
+                print!("{}", gantry::scan::scan(&repo).text());
+                ws.mark_scanned(&project.id, &gantry::gateway::rfc3339_now());
+            }
+            Err(fault) => {
+                failed += 1;
+                // The scanner's own fault names the path and stops there,
+                // which is the right message when a path was typed at it and
+                // the wrong one here: what the operator has is an id, and what
+                // moved is the tree behind it.
+                eprintln!(
+                    "{}",
+                    Fault::new(
+                        format!("cannot scan project {}: {}", project.id, fault.cause),
+                        format!("the registry points {} at {}; re-add it with gantry project add <path-or-url> --id {}, or drop it with gantry project remove {}", project.id, dir.display(), project.id, project.id),
+                    )
+                );
+            }
+        }
+        println!();
+    }
+    ws.save(&home)?;
+    Ok(if failed == 0 { 0 } else { 1 })
 }
 
 fn to_json<T: serde::Serialize>(value: &T) -> Result<String, Fault> {
