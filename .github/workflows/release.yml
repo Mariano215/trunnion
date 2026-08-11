@@ -146,8 +146,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      # By name, not everything. docker/build-push-action uploads a
+      # `.dockerbuild` build record of its own, so an unfiltered download
+      # pulls an artifact this job has no use for and then fails the release
+      # when that one download fails, which is what happened on the first
+      # v0.1.0 attempt: both binaries arrived and the build record did not.
       - uses: actions/download-artifact@v4
         with:
+          pattern: gantry-*
           path: artifacts
           merge-multiple: true
 
