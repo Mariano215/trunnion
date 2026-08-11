@@ -103,6 +103,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
+      # arm64 is emulated here. v0.1.0 shipped an amd64-only image, so
+      # `docker pull` failed on an Apple Silicon laptop with "no matching
+      # manifest for linux/arm64/v8" while the README told that reader to run
+      # exactly that command. The emulated build is slower than a native
+      # runner and is one line rather than a second job pushing by digest and
+      # a manifest list stitched afterwards; when the wait stops being worth
+      # it, that is the shape to move to.
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       # A registry repository name must be lowercase and a GitHub owner need
@@ -132,6 +141,10 @@ jobs:
         with:
           context: .
           push: true
+          # Both architectures the binaries are built for. A single-platform
+          # image is not a smaller version of this, it is one that fails to
+          # pull on half the machines the release is for.
+          platforms: linux/amd64,linux/arm64
           # Both tags: the version for anyone pinning, latest for anyone
           # trying it. A digest is what a policy should pin, and the release
           # notes say so rather than leaving `latest` to be read as stable.

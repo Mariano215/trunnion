@@ -11,6 +11,18 @@ the diff to find out whether it mattered.
 
 Nothing yet.
 
+## [0.1.1] - 2026-08-11
+
+### Fixed
+
+- **The container image is built for arm64 as well as amd64.** 0.1.0 shipped
+  an amd64-only image, so `docker pull` on an Apple Silicon machine failed
+  with `no matching manifest for linux/arm64/v8` while the README told that
+  reader to run exactly that command. Proved on arm64 before shipping: the
+  image builds, `template init` writes a harness, and a run records
+  `landlock-v4` with no shortfall, so containment is real on that
+  architecture and not merely present.
+
 ## [0.1.0] - 2026-08-11
 
 First release. Pre-1.0: the API is not stable, and every slice built so far
