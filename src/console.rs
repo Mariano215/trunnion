@@ -68,7 +68,7 @@ pub fn bind(addr: &str) -> Result<TcpListener, Fault> {
 /// the log's current state. Loopback by default; an operator exposing it
 /// further does so explicitly, and the read-only rule is what makes that
 /// survivable.
-pub fn serve(ledger_dir: &str, addr: &str) -> Result<i32, Fault> {
+pub fn serve(ledger_dir: Option<&str>, addr: &str) -> Result<i32, Fault> {
     let listener = bind(addr)?;
     let bound = listener
         .local_addr()
@@ -83,7 +83,7 @@ pub fn serve(ledger_dir: &str, addr: &str) -> Result<i32, Fault> {
 /// loopback, so a queue is cheaper than a thread pool nobody measured.
 // ponytail: sequential accept. Spawn per connection if a slow /api/verify
 // starts blocking the console in practice.
-pub fn serve_on(listener: &TcpListener, ledger_dir: &str) {
+pub fn serve_on(listener: &TcpListener, ledger_dir: Option<&str>) {
     for stream in listener.incoming() {
         let Ok(mut stream) = stream else { continue };
         let response = match read_request(&mut stream) {
@@ -413,7 +413,7 @@ const ASSETS: &[(&str, &str, &str)] = &[
 /// load-bearing rather than cosmetic.
 const JS: &str = "text/javascript; charset=utf-8";
 
-fn respond(ledger_dir: &str, request: &Request) -> Response {
+fn respond(ledger_dir: Option<&str>, request: &Request) -> Response {
     debug_assert_eq!(request.method, "GET");
     if let Some(route) = request.path.strip_prefix("/api/") {
         return match api(ledger_dir, route, &request.query) {
@@ -446,7 +446,33 @@ fn respond(ledger_dir: &str, request: &Request) -> Response {
     }
 }
 
-fn api(ledger_dir: &str, route: &str, query: &[(String, String)]) -> Result<Value, ApiError> {
+/// The routes, workspace first.
+///
+/// A console started with no ledger still answers the workspace routes, because
+/// the question a review opens with is about a set of repositories and not about
+/// one log. The ledger routes then report that this console was started without
+/// one, rather than reporting a broken ledger: "there is no log here" and "the
+/// log here is damaged" are different states and the verification takeover reads
+/// the second as an alarm.
+fn api(
+    ledger_dir: Option<&str>,
+    route: &str,
+    query: &[(String, String)],
+) -> Result<Value, ApiError> {
+    match route {
+        "projects" => return projects(),
+        _ => {
+            if let Some(rest) = route.strip_prefix("projects/") {
+                return project_route(rest);
+            }
+        }
+    }
+    let ledger_dir = ledger_dir.ok_or_else(|| {
+        not_found(Fault::new(
+            "this console was started without a ledger, so there is no log to read",
+            "the workspace routes are /api/projects and /api/projects/:id/scan; for a log, run gantry console <ledger-dir>",
+        ))
+    })?;
     match route {
         "score" => score(ledger_dir),
         "head" => head(ledger_dir),
@@ -460,10 +486,135 @@ fn api(ledger_dir: &str, route: &str, query: &[(String, String)]) -> Result<Valu
             Some(id) if !id.is_empty() && !id.contains('/') => one_event(ledger_dir, id),
             _ => Err(not_found(Fault::new(
                 format!("/api/{route} is not a route"),
-                "the routes are /api/score, /api/head, /api/events, /api/events/:id, /api/runs, /api/policy, /api/trust, /api/approvals and /api/verify; see docs/CONSOLE-API.md",
+                "the routes are /api/projects, /api/projects/:id/scan, /api/projects/:id/remediate, /api/score, /api/head, /api/events, /api/events/:id, /api/runs, /api/policy, /api/trust, /api/approvals and /api/verify; see docs/CONSOLE-API.md",
             ))),
         },
     }
+}
+
+// -- workspace handlers -----------------------------------------------------
+
+/// Every registered project with the shape of its last scan.
+///
+/// The scan runs on the request rather than being read from a stored result. A
+/// console showing a number from last week describes a tree that has since
+/// moved, and this page is read as current by whoever has it open. A project
+/// whose tree cannot be read is one row reporting that, not a failed response:
+/// a stale path on one project must not hide the eleven behind it.
+fn projects() -> Result<Value, ApiError> {
+    let home = crate::workspace::home().map_err(read_failure)?;
+    let ws = crate::workspace::Workspace::load(&home).map_err(read_failure)?;
+    let rows: Vec<Value> = ws
+        .projects
+        .iter()
+        .map(|p| {
+            let dir = ws.checkout(&home, p);
+            let base = json!({
+                "id": p.id,
+                "risk": p.risk.as_str(),
+                "source": crate::workspace::source_text(&p.source),
+                "path": dir.display().to_string(),
+                "last_scan": p.last_scan,
+                "ledger": p.ledger,
+            });
+            match crate::scan::RepoRead::open(&dir) {
+                Ok(repo) => {
+                    let report = crate::scan::scan(&repo);
+                    let scores: Vec<u8> = report.findings.iter().map(|f| f.score).collect();
+                    let at_floor = scores.iter().filter(|s| **s == report.overall).count();
+                    merge(
+                        base,
+                        json!({
+                            "readable": true,
+                            "overall": report.overall,
+                            "scores": scores,
+                            "at_floor": at_floor,
+                        }),
+                    )
+                }
+                Err(fault) => merge(
+                    base,
+                    json!({ "readable": false, "cause": fault.cause, "fix": fault.fix }),
+                ),
+            }
+        })
+        .collect();
+    Ok(json!({ "projects": rows, "ceiling": crate::scan::STATIC_CEILING }))
+}
+
+/// `<id>/scan` and `<id>/remediate`. An id carrying a slash is not an id, and
+/// is refused here rather than reaching the registry.
+fn project_route(rest: &str) -> Result<Value, ApiError> {
+    let (id, tail) = match rest.split_once('/') {
+        Some((id, tail)) => (id, tail),
+        None => (rest, ""),
+    };
+    if id.is_empty() || tail.contains('/') {
+        return Err(not_found(Fault::new(
+            format!("/api/projects/{rest} is not a route"),
+            "the project routes are /api/projects/:id/scan and /api/projects/:id/remediate",
+        )));
+    }
+    let home = crate::workspace::home().map_err(read_failure)?;
+    let ws = crate::workspace::Workspace::load(&home).map_err(read_failure)?;
+    let project = ws.find(id).cloned().ok_or_else(|| {
+        not_found(Fault::new(
+            format!("the workspace has no project called {id}"),
+            "read /api/projects for the registered ids, or register this one with gantry project add <path-or-url>",
+        ))
+    })?;
+    let dir = ws.checkout(&home, &project);
+    let repo = crate::scan::RepoRead::open(&dir).map_err(read_failure)?;
+    let report = crate::scan::scan(&repo);
+    match tail {
+        "scan" => Ok(merge(
+            serde_json::to_value(&report).map_err(|e| {
+                read_failure(Fault::new(
+                    format!("the scan of {id} does not serialise: {e}"),
+                    "report this as a bug; ScanReport is serialisable by construction",
+                ))
+            })?,
+            json!({
+                "id": project.id,
+                "risk": project.risk.as_str(),
+                "ceiling": crate::scan::STATIC_CEILING,
+            }),
+        )),
+        "remediate" => {
+            let doc = crate::remediate::document(&report, project.risk, &project.id)
+                .map_err(read_failure)?;
+            let gaps = crate::remediate::gaps(&report, project.risk);
+            Ok(json!({
+                "id": project.id,
+                "risk": project.risk.as_str(),
+                "document": doc,
+                "gaps": gaps.iter().map(|g| json!({
+                    "primitive": g.primitive,
+                    "key": g.key,
+                    "name": g.name,
+                    "current": g.current,
+                    "target": g.target,
+                    "gap": g.gap,
+                })).collect::<Vec<_>>(),
+            }))
+        }
+        _ => Err(not_found(Fault::new(
+            format!("/api/projects/{rest} is not a route"),
+            "the project routes are /api/projects/:id/scan and /api/projects/:id/remediate",
+        ))),
+    }
+}
+
+/// Two objects into one. The scan report serialises itself and the workspace
+/// knows things it does not, so the row carries both rather than the front end
+/// making a second request to join them.
+fn merge(mut base: Value, extra: Value) -> Value {
+    if let (Some(b), Some(e)) = (base.as_object_mut(), extra.as_object()) {
+        for (k, v) in e {
+            b.insert(k.clone(), v.clone());
+        }
+    }
+    base
 }
 
 // -- handlers ---------------------------------------------------------------

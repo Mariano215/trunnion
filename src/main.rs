@@ -62,7 +62,8 @@ const USAGE: &str = "usage:
   gantry project scan [<id>]                        (every project when the id is omitted)
   gantry project remediate <id> [--primitive <n>]   (paste-ready briefs, worst first)
   gantry score <ledger-dir> [scoring.json] [console.html]
-  gantry console <ledger-dir> [127.0.0.1:port]
+  gantry console                                    (workspace: every registered project)
+  gantry console <ledger-dir> [127.0.0.1:port]      (one ledger)
   gantry skill resolve <ledger-dir> <package-dir> [pubkey-hex]
   gantry skill delegate <parent-caps-csv> <package-dir>
   gantry skill run <ledger-dir> <package-dir> <parent-caps-csv>
@@ -432,8 +433,9 @@ fn run() -> Result<i32, Fault> {
         ["graph", "compare", graph_path, symbol, files @ ..] if !files.is_empty() => {
             graph_compare(graph_path, symbol, files)
         }
-        ["console", ledger_dir] => gantry::console::serve(ledger_dir, "127.0.0.1:0"),
-        ["console", ledger_dir, addr] => gantry::console::serve(ledger_dir, addr),
+        ["console"] => gantry::console::serve(None, "127.0.0.1:0"),
+        ["console", ledger_dir] => gantry::console::serve(Some(ledger_dir), "127.0.0.1:0"),
+        ["console", ledger_dir, addr] => gantry::console::serve(Some(ledger_dir), addr),
         ["scan", repo_dir] => {
             // Read-only by construction: RepoRead is the only filesystem
             // access the scanner has and it exposes no write. Nothing is
