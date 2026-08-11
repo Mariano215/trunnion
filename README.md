@@ -647,6 +647,15 @@ check that fires comes from.
 
 ## Licence
 
+Built and maintained by [Mattei Systems](https://matteisystems.com).
+
+Mattei Systems sells assessments against this model, which is a conflict worth
+stating rather than leaving for a reader to discover: the scoring logic is open,
+every number names the evidence behind it, and any finding this tool produces is
+verifiable by someone who does not work here. The
+[specification's governance document](https://github.com/Mariano215/agent-harness-maturity/blob/main/GOVERNANCE.md)
+carries the same statement and the mitigations that go with it.
+
 Apache License 2.0, full text in `LICENSE`. Apache rather than MIT because
 this is a security control plane meant to be embedded in other people's
 stacks, and Apache carries an explicit patent grant that enterprise legal
