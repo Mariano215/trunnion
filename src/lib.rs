@@ -9,6 +9,7 @@ pub mod ledger;
 pub mod merkle;
 pub mod policy;
 pub mod remediate;
+pub mod report;
 pub mod runlog;
 pub mod sandbox;
 pub mod scan;
