@@ -4,16 +4,16 @@
 //! config/policy.json, not a fixture, so the policy the proof cites is the
 //! policy under test.
 
-use gantry::broker::{BrokerRun, ToolDef};
-use gantry::gateway::Pinning;
-use gantry::ledger::{self, Ledger};
-use gantry::policy::Policy;
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
+use trunnion::broker::{BrokerRun, ToolDef};
+use trunnion::gateway::Pinning;
+use trunnion::ledger::{self, Ledger};
+use trunnion::policy::Policy;
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-br-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-br-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -327,12 +327,12 @@ fn broker_gates_on_the_earned_rung_not_the_declared_one() {
     let led = dir.join("ledger-earned-rung");
     let mut ledger = Ledger::init(&led).unwrap();
     ledger
-        .append(gantry::event::NewEvent {
+        .append(trunnion::event::NewEvent {
             id: "demote-0".into(),
             run_id: "run-orch".into(),
             parent_id: None,
             seq: 0,
-            ts: gantry::gateway::rfc3339_now(),
+            ts: trunnion::gateway::rfc3339_now(),
             kind: "rung.change".into(),
             actor: json!({"type": "system", "id": "system:orchestrator", "identity_source": "local", "rung": null}),
             authority: json!({}),
@@ -378,7 +378,8 @@ fn a_real_run_is_signed_and_verifies_against_the_tracked_registry() {
     run.call("Read", &f.display().to_string()).unwrap();
     run.seal("complete").unwrap();
 
-    let registry = gantry::skills::KeyRegistry::load(&repo_path("config/actor-keys.json")).unwrap();
+    let registry =
+        trunnion::skills::KeyRegistry::load(&repo_path("config/actor-keys.json")).unwrap();
     let report = ledger::verify_with_actor_keys(&led, &registry.key_hexes()).unwrap();
     assert!(report.ok(), "faults: {:?}", report.faults);
     assert_eq!(
@@ -409,7 +410,8 @@ fn a_verified_attestation_under_a_published_seed_is_counted_apart() {
     run.call("Read", &f.display().to_string()).unwrap();
     run.seal("complete").unwrap();
 
-    let registry = gantry::skills::KeyRegistry::load(&repo_path("config/actor-keys.json")).unwrap();
+    let registry =
+        trunnion::skills::KeyRegistry::load(&repo_path("config/actor-keys.json")).unwrap();
     let published = registry.published_seed_hexes();
     assert!(
         !published.is_empty(),
@@ -458,7 +460,8 @@ fn altering_a_signed_event_is_reported_as_alteration() {
         .collect();
     fs::write(&path, rewritten.join("\n") + "\n").unwrap();
 
-    let registry = gantry::skills::KeyRegistry::load(&repo_path("config/actor-keys.json")).unwrap();
+    let registry =
+        trunnion::skills::KeyRegistry::load(&repo_path("config/actor-keys.json")).unwrap();
     let report = ledger::verify_with_actor_keys(&led, &registry.key_hexes()).unwrap();
     assert!(!report.ok(), "an altered signed event must fault");
     assert!(
@@ -597,7 +600,7 @@ fn tracked_policy_has_host_parity() {
     );
 }
 
-/// `gantry template init` on the tracked template, returning the harness's
+/// `trunnion template init` on the tracked template, returning the harness's
 /// declared actor key id. The bundle is validated as a harness in its own
 /// right before the key id is read, so a destination that would refuse to run
 /// fails here rather than downstream.
@@ -625,9 +628,9 @@ fn init_harness(dest: &Path) -> String {
         .to_string()
 }
 
-/// `gantry template <args>`, run as the binary a user runs.
+/// `trunnion template <args>`, run as the binary a user runs.
 fn template_cmd(args: &[&str]) -> std::process::Output {
-    std::process::Command::new(env!("CARGO_BIN_EXE_gantry"))
+    std::process::Command::new(env!("CARGO_BIN_EXE_trunnion"))
         .arg("template")
         .args(args)
         .output()
@@ -676,7 +679,7 @@ fn template_init_generates_a_per_harness_key_and_the_harness_signs() {
     run.seal("complete").unwrap();
 
     let registry =
-        gantry::skills::KeyRegistry::load(&first.join("config/actor-keys.json")).unwrap();
+        trunnion::skills::KeyRegistry::load(&first.join("config/actor-keys.json")).unwrap();
     let published = registry.published_seed_hexes();
     assert!(
         published.is_empty(),
@@ -745,7 +748,7 @@ fn a_refused_init_leaves_no_seed_and_never_clobbers_one() {
 
 // ---------- approvals for held calls ----------
 
-/// `gantry approve` against a ledger, run from the repository root so it reads
+/// `trunnion approve` against a ledger, run from the repository root so it reads
 /// the tracked config/policy.json the same way the broker does.
 fn approve_cmd(led: &Path, request_id: &str, approver: &str) -> std::process::Output {
     approve_with(led, request_id, approver, "approve")
@@ -757,7 +760,7 @@ fn approve_with(
     approver: &str,
     verdict: &str,
 ) -> std::process::Output {
-    std::process::Command::new(env!("CARGO_BIN_EXE_gantry"))
+    std::process::Command::new(env!("CARGO_BIN_EXE_trunnion"))
         .arg("approve")
         .arg(led)
         .arg(request_id)
@@ -990,7 +993,7 @@ fn a_denied_call_cannot_be_approved() {
 
 /// The consuming end re-derives permission rather than trusting that a grant
 /// exists. A ledger is a file, so a grant can be put on it by something other
-/// than `gantry approve`; here the grant is written while the profile permits
+/// than `trunnion approve`; here the grant is written while the profile permits
 /// any approver, and consumed under a profile that names a closed set.
 #[test]
 fn a_grant_from_an_unpermitted_approver_does_not_release_the_call() {
@@ -1289,7 +1292,7 @@ fn a_decision_names_the_call_it_decided_rather_than_relying_on_adjacency() {
 /// nobody gave for B.
 #[test]
 fn approve_binds_the_grant_to_the_call_the_decision_named() {
-    use gantry::event::NewEvent;
+    use trunnion::event::NewEvent;
     let dir = workdir("approve-correlation");
     let led = dir.join("ledger-approve-correlation");
     let mut ledger = Ledger::init(&led).unwrap();
@@ -1393,8 +1396,8 @@ fn a_harness_ships_the_exemption_the_gitignore_and_scans_clean() {
         "the generated seed is the one piece of real key material in a harness; a committed one signs as an identity anyone can forge"
     );
 
-    let repo = gantry::scan::RepoRead::open(&harness).unwrap();
-    let scanned = gantry::scan::scan_keys(&repo);
+    let repo = trunnion::scan::RepoRead::open(&harness).unwrap();
+    let scanned = trunnion::scan::scan_keys(&repo);
     assert!(
         scanned.ok(),
         "a fresh harness holds no key material: {}",
@@ -1415,7 +1418,7 @@ fn a_harness_ships_the_exemption_the_gitignore_and_scans_clean() {
         ),
     )
     .unwrap();
-    let after = gantry::scan::scan_keys(&gantry::scan::RepoRead::open(&harness).unwrap());
+    let after = trunnion::scan::scan_keys(&trunnion::scan::RepoRead::open(&harness).unwrap());
     assert!(
         !after.ok(),
         "a key inside the exempted sensor directory was not caught"

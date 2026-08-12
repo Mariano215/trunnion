@@ -6,7 +6,7 @@
 # endpoint; if it is down, primitives 2 and 3 score N/A, which is the honest
 # result and the proof still runs.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof08.XXXXXX)
 L=$WORK/ledger
 echo "workdir: $WORK"

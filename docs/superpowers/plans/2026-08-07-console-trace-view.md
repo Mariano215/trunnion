@@ -332,7 +332,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - Test: `tests/console.rs`
 
 **Interfaces:**
-- Consumes: `gantry::ledger::SeqGap` (`src/ledger.rs:61`), already on `VerifyReport::seq_gaps`.
+- Consumes: `trunnion::ledger::SeqGap` (`src/ledger.rs:61`), already on `VerifyReport::seq_gaps`.
 - Produces: `/api/verify` gains `seq_gaps: [{run_id, after, before, missing}]`, ordered as the report produces them. Task 8 renders it. `ok` is unchanged and stays false only on faults.
 
 Context: `SeqGap` derives `Debug, Clone, PartialEq, Eq` and not `Serialize`. The JSON is built by hand in the handler, which keeps the derive surface out of `ci/schema-compat`.
@@ -440,7 +440,7 @@ the record and must not present it as tampering.
 git add src/console.rs tests/console.rs docs/CONSOLE-API.md
 git commit -m "feat: the verify route returns the seq gaps it already found
 
-Ledger::seq_gaps has existed since the anchoring slice and gantry ledger
+Ledger::seq_gaps has existed since the anchoring slice and trunnion ledger
 verify prints it. The API dropped it on the floor, so no console has ever been
 able to show a hole in the record.
 
@@ -652,7 +652,7 @@ Use the variable names already defined at the top of `console.css`. If `--rule`,
 Run:
 ```bash
 cargo build
-target/debug/gantry console <a ledger directory> --port 8899 &
+target/debug/trunnion console <a ledger directory> --port 8899 &
 open http://127.0.0.1:8899/#/trace
 ```
 Expected: one row per actor on the ledger, marks spread along each row, and the panel subtitle naming the lane count and the drawn-of-total events.
@@ -1416,7 +1416,7 @@ Add an architecture invariant naming what enforces the no-inferred-edge rule:
 
 - [ ] **Step 5: Re-run the scan on this repository**
 
-Run: `target/debug/gantry scan .`
+Run: `target/debug/trunnion scan .`
 Expected: the unenforced marker count is unchanged, or one lower if this slice closed one. If it moved, update `README.md` and say why in the proof document.
 
 - [ ] **Step 6: Commit**

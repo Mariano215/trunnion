@@ -162,7 +162,7 @@ fn last_event_field(running: &Running, path: &[&str]) -> Option<String> {
 fn no_event() -> Reading {
     unreadable(
         "the ledger carries no event to read this off",
-        "run any gantry command that appends an event against this ledger, then re-run gantry drift",
+        "run any trunnion command that appends an event against this ledger, then re-run trunnion drift",
     )
 }
 
@@ -176,7 +176,7 @@ fn read(source: &str, running: &Running) -> Reading {
             Ok(hash) => Reading::Value(hash),
             Err(fault) => unreadable(
                 format!("the instruction pack cannot be hashed: {}", fault.cause),
-                "restore the instruction pack at the path the run pins, then re-run gantry drift",
+                "restore the instruction pack at the path the run pins, then re-run trunnion drift",
             ),
         },
         "hook.settings_hash" => match &running.settings {
@@ -184,7 +184,7 @@ fn read(source: &str, running: &Running) -> Reading {
                 Ok(hash) => Reading::Value(hash),
                 Err(fault) => unreadable(
                     format!("the host settings file cannot be hashed: {}", fault.cause),
-                    "restore .claude/settings.json, then re-run gantry drift",
+                    "restore .claude/settings.json, then re-run trunnion drift",
                 ),
             },
             None => unreadable(
@@ -201,7 +201,7 @@ fn read(source: &str, running: &Running) -> Reading {
             } else {
                 unreadable(
                     "the ledger at this path has no signed head yet",
-                    "run any gantry command that appends an event against this ledger, then re-run gantry drift",
+                    "run any trunnion command that appends an event against this ledger, then re-run trunnion drift",
                 )
             }
         }

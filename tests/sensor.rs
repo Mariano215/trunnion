@@ -3,16 +3,16 @@
 //! cannot fail is recorded as broken, not clean. Both attempts are on the
 //! ledger under one run.
 
-use gantry::gateway::Pinning;
-use gantry::ledger::{self, Ledger};
-use gantry::sandbox::Sandbox;
-use gantry::sensor::{Sensor, SensorRun, Verdict};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
+use trunnion::gateway::Pinning;
+use trunnion::ledger::{self, Ledger};
+use trunnion::sandbox::Sandbox;
+use trunnion::sensor::{Sensor, SensorRun, Verdict};
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-sensor-it-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-sensor-it-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -41,8 +41,10 @@ fn no_key_sensor() -> Sensor {
 }
 
 fn sandbox(name: &str) -> Sandbox {
-    let dir =
-        std::env::temp_dir().join(format!("gantry-sensor-it-sb-{}-{name}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!(
+        "trunnion-sensor-it-sb-{}-{name}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&dir);
     Sandbox::per_run(&dir, &[]).unwrap()
 }

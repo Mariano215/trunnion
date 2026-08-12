@@ -24,7 +24,7 @@ async function get(path) {
   } catch (e) {
     throw new ApiFault(
       `the console could not reach ${path}: ${e.message}`,
-      'check that the gantry server is still running and serving this origin, then reload',
+      'check that the trunnion server is still running and serving this origin, then reload',
       0,
       path,
     );
@@ -46,7 +46,7 @@ async function get(path) {
   if (body === null) {
     throw new ApiFault(
       `${path} returned a body that is not JSON`,
-      'confirm the request reached the gantry API and not a proxy or a static file',
+      'confirm the request reached the trunnion API and not a proxy or a static file',
       res.status,
       path,
     );

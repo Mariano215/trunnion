@@ -1,10 +1,10 @@
-# Gantry — bootstrap handoff
+# Trunnion — bootstrap handoff
 
-Target repo: **https://github.com/Mariano215/gantry** (currently empty)
+Target repo: **https://github.com/Mariano215/trunnion** (currently empty)
 
 ## What this package is
 
-A seed for a Claude Code session that will build Gantry from nothing. It is a
+A seed for a Claude Code session that will build Trunnion from nothing. It is a
 **specification and instruction bundle, not source code and not a UI design
 handoff.** Nothing here should be copied into the repo unchanged except the
 files explicitly marked as repo seeds below.
@@ -13,7 +13,7 @@ The design artifact from the concept phase (`Agentic Platform Concept.dc.html`)
 is a reasoning document. It records what was decided and why. It is not a mock
 of the product UI and there is no UI to recreate yet.
 
-## What Gantry is, in one paragraph
+## What Trunnion is, in one paragraph
 
 An LLM-agnostic, cloud-agnostic control plane for agentic engineering, shipped
 as a container. It implements the twelve-primitive harness model as running

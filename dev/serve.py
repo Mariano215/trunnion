@@ -38,8 +38,8 @@ ROUTES = {"score", "head", "events", "runs", "policy", "trust", "approvals", "ve
 # query text is a hole even in dev tooling.
 DRIVE = {
     "proceed": "document.querySelectorAll('.takeover-actions .btn')[1].click();",
-    "light": "localStorage.setItem('gantry-theme','light');document.documentElement.setAttribute('data-theme','light');",
-    "dark": "localStorage.setItem('gantry-theme','dark');document.documentElement.setAttribute('data-theme','dark');",
+    "light": "localStorage.setItem('trunnion-theme','light');document.documentElement.setAttribute('data-theme','light');",
+    "dark": "localStorage.setItem('trunnion-theme','dark');document.documentElement.setAttribute('data-theme','dark');",
     # j j j Enter: three moves down the selection, then expand. Proves the
     # keyboard path without a human at the keyboard.
     "keys": ("const k=(key)=>document.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}));"

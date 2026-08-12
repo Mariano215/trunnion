@@ -5,9 +5,9 @@
 //! whether a predicate actually requires what its evidence string claims,
 //! remains human review.
 
-use gantry::scorer::Scoring;
 use serde_json::{json, Value};
 use std::path::Path;
+use trunnion::scorer::Scoring;
 
 fn repo_path(rel: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)

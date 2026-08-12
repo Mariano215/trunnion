@@ -55,7 +55,7 @@ the backend records `none` and the isolation claim is honestly unmet.
 
 ## landlock
 
-The Linux isolation backend, and the reason `none` is no longer what gantry
+The Linux isolation backend, and the reason `none` is no longer what trunnion
 reports on every non-macOS host. Until this crate arrived the binary compiled
 and ran on Linux with no containment at all, in a tool whose entire pitch is
 measuring whether other people's agents are contained.

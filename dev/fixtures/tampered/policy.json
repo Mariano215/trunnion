@@ -43,7 +43,7 @@
     {
       "id": "r-write-needs-review",
       "decision": "hold",
-      "message": "a shared write at the assisted rung needs a human approval; request one with gantry approve, naming the capability",
+      "message": "a shared write at the assisted rung needs a human approval; request one with trunnion approve, naming the capability",
       "fired": 1
     },
     {

@@ -27,13 +27,13 @@ pub struct Substitution {
 
 impl CredentialBroker {
     /// Loads handle values from the process environment: handle `NAME` reads
-    /// `GANTRY_SECRET_NAME`. The values never enter an event, a prompt or a
+    /// `TRUNNION_SECRET_NAME`. The values never enter an event, a prompt or a
     /// tool argument; only handle names do.
     pub fn from_env(handles: &[String]) -> CredentialBroker {
         let mut values = BTreeMap::new();
         for h in handles {
             let var = format!(
-                "GANTRY_SECRET_{}",
+                "TRUNNION_SECRET_{}",
                 h.to_uppercase().replace(['-', '.'], "_")
             );
             if let Ok(v) = std::env::var(&var) {
@@ -49,7 +49,7 @@ impl CredentialBroker {
         CredentialBroker { values }
     }
 
-    /// Replaces every `{{handle:NAME}}` with `"$GANTRY_HANDLE_NAME"` and
+    /// Replaces every `{{handle:NAME}}` with `"$TRUNNION_HANDLE_NAME"` and
     /// returns the environment pairs to inject. `granted` is the calling
     /// capability's `credentials` list: a handle outside it is refused, and
     /// so is a handle the broker holds no value for.
@@ -78,13 +78,13 @@ impl CredentialBroker {
                 Fault::new(
                     format!("no value is registered for credential handle {name}"),
                     format!(
-                        "export GANTRY_SECRET_{} before the run; the broker never invents a value",
+                        "export TRUNNION_SECRET_{} before the run; the broker never invents a value",
                         name.to_uppercase()
                     ),
                 )
             })?;
             let var = format!(
-                "GANTRY_HANDLE_{}",
+                "TRUNNION_HANDLE_{}",
                 name.to_uppercase().replace(['-', '.'], "_")
             );
             out.push_str(&format!("\"${var}\""));
@@ -145,11 +145,11 @@ mod tests {
             "value in command: {}",
             s.command
         );
-        assert!(s.command.contains("\"$GANTRY_HANDLE_API_TOKEN\""));
+        assert!(s.command.contains("\"$TRUNNION_HANDLE_API_TOKEN\""));
         assert_eq!(
             s.env,
             vec![(
-                "GANTRY_HANDLE_API_TOKEN".to_string(),
+                "TRUNNION_HANDLE_API_TOKEN".to_string(),
                 "sk-secret-value".to_string()
             )]
         );
@@ -173,8 +173,8 @@ mod tests {
             .unwrap_err();
         assert!(fault.cause.contains("no value is registered"), "{fault}");
         assert!(
-            fault.fix.contains("GANTRY_SECRET_API-TOKEN")
-                || fault.fix.contains("GANTRY_SECRET_API"),
+            fault.fix.contains("TRUNNION_SECRET_API-TOKEN")
+                || fault.fix.contains("TRUNNION_SECRET_API"),
             "{fault}"
         );
     }
@@ -186,7 +186,7 @@ mod tests {
             .substitute("echo {{handle:api-token}} {{handle:api-token}}", &granted)
             .unwrap();
         assert_eq!(s.env.len(), 1);
-        assert_eq!(s.command.matches("$GANTRY_HANDLE_API_TOKEN").count(), 2);
+        assert_eq!(s.command.matches("$TRUNNION_HANDLE_API_TOKEN").count(), 2);
     }
 
     #[test]

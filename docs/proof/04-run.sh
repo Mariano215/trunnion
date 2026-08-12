@@ -5,7 +5,7 @@
 # repository root after cargo build. The prompt-injection leg needs a model;
 # it uses the local ollama endpoint in config/providers.json.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof04.XXXXXX)
 L=$WORK/ledger
 echo "workdir: $WORK"

@@ -19,7 +19,7 @@
 # root after cargo build. No network needed; the one model call in
 # `gantry run` is tolerated offline exactly as in proof 08.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 SENSOR=templates/laptop/config/sensors/instruction-lifecycle.json
 WORK=$(mktemp -d /tmp/gantry-proof13.XXXXXX)
 echo "workdir: $WORK"

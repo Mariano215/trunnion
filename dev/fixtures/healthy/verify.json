@@ -11,5 +11,5 @@
     "key_id": "ledger-local-1",
     "sig": "MEUCIQD8kZ2vXq7nR4mLpT0wYcBjHf1sAeNdUx9oGvC3rK6iLwIgV5tBnQ2mHy8dEfJ4uXo1aZbS7cPqW0kMr6TgN3vDyEs="
   },
-  "reproduce": "gantry ledger verify /var/lib/gantry/ledger"
+  "reproduce": "trunnion ledger verify /var/lib/trunnion/ledger"
 }

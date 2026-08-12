@@ -9,7 +9,7 @@
 # them as leaked keys, and there are twenty-one such blocks.
 #
 # The stock `private-key` rule is switched off, and it is replaced rather than
-# merely dropped: `gantry scan-keys .` runs on every push, reads every file in
+# merely dropped: `trunnion scan-keys .` runs on every push, reads every file in
 # the tree, and fails the gate on a PEM block whose base64 body decodes to
 # 48 bytes or more, which is a PKCS8 ed25519 key and the smallest real private
 # key there is. That is a stricter test than the pattern it replaces, because
@@ -22,7 +22,7 @@
 # in them. Only private key detection is handed over here; everything else
 # stays live everywhere.
 
-title = "gantry"
+title = "trunnion"
 
 [extend]
 useDefault = true

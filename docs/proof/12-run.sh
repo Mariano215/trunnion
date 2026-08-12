@@ -9,7 +9,7 @@
 # host_permissions.permission_mode. Run from the repository root after
 # cargo build. No network needed.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 HOOK=.claude/hooks/permission-mode.sh
 WORK=$(mktemp -d /tmp/gantry-proof12.XXXXXX)
 L=$WORK/ledger

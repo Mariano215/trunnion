@@ -5,13 +5,13 @@
 //! reports `unobservable` even when the declared value and the value a naive
 //! implementation would produce are the same string.
 
-use gantry::drift::{self, Outcome, Running};
-use gantry::policy::Policy;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
+use trunnion::drift::{self, Outcome, Running};
+use trunnion::policy::Policy;
 
 fn workdir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("gantry-drift-{}-{name}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("trunnion-drift-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir
@@ -105,7 +105,7 @@ fn an_unreadable_source_does_not_stop_the_walk() {
     // the middle does not silence the fields around it, and pinning a
     // platform here would make the walk's own behaviour look platform
     // dependent when it is not.
-    let here = gantry::sandbox::active_backend();
+    let here = trunnion::sandbox::active_backend();
     let (_dir, path) = policy_with(
         "unknown",
         json!({
@@ -179,8 +179,8 @@ fn a_divergence_names_both_values_and_a_fix() {
     );
 }
 
-fn gantry(args: &[&str]) -> std::process::Output {
-    std::process::Command::new(env!("CARGO_BIN_EXE_gantry"))
+fn trunnion(args: &[&str]) -> std::process::Output {
+    std::process::Command::new(env!("CARGO_BIN_EXE_trunnion"))
         .args(args)
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
@@ -209,7 +209,7 @@ fn every_field_reports_every_run_and_the_ledger_verifies() {
         .map(serde_json::Map::len)
         .unwrap_or_default();
     for _ in 0..2 {
-        let out = gantry(&["drift", &led.display().to_string(), "config/policy.json"]);
+        let out = trunnion(&["drift", &led.display().to_string(), "config/policy.json"]);
         let text = String::from_utf8_lossy(&out.stdout);
         assert!(
             text.contains(&format!("{fields} field(s) walked")),
@@ -222,7 +222,7 @@ fn every_field_reports_every_run_and_the_ledger_verifies() {
         fields * 2,
         "a run reported fewer fields than it walked"
     );
-    let verify = gantry(&["ledger", "verify", &led.display().to_string()]);
+    let verify = trunnion(&["ledger", "verify", &led.display().to_string()]);
     assert!(
         verify.status.success(),
         "the drift ledger does not verify: {}",
@@ -236,7 +236,7 @@ fn every_field_reports_every_run_and_the_ledger_verifies() {
 #[test]
 fn a_divergent_field_lands_in_authority_diverged_and_the_exit_status_is_one() {
     let led = workdir("diverged").join("led");
-    let out = gantry(&["drift", &led.display().to_string(), "config/policy.json"]);
+    let out = trunnion(&["drift", &led.display().to_string(), "config/policy.json"]);
     let text = String::from_utf8_lossy(&out.stdout);
     let divergent: Vec<&str> = text
         .lines()

@@ -1,10 +1,10 @@
-<!-- Built by dev/build-site.py from dev/site-src/gantry.dc.html.
+<!-- Built by dev/build-site.py from dev/site-src/trunnion.dc.html.
      Edit the source, not this file: the next build overwrites it. -->
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>Gantry</title>
+<title>Trunnion</title>
 <link rel="icon" href="assets/logo.png">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./vendor/react.production.min.js"></script>
@@ -29,12 +29,12 @@
 </style>
 </helmet>
 
-<div data-screen-label="Gantry README" style="position: relative; background: #0d0e12; overflow-x: hidden;">
+<div data-screen-label="Trunnion README" style="position: relative; background: #0d0e12; overflow-x: hidden;">
 
   <nav style="position: sticky; top: 0; z-index: 50; height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(1.25rem, 4vw, 3rem); background: rgba(13,14,18,.78); backdrop-filter: blur(12px); border-bottom: 1px solid #1e2235;">
     <a href="#top" style="display: flex; align-items: center; gap: .6rem;">
-      <img src="assets/logo.png" alt="Gantry" style="height: 26px; width: auto; filter: brightness(1.45) saturate(1.05);">
-      <span style="font-family: var(--font-display, 'Plus Jakarta Sans'), sans-serif; font-weight: 700; letter-spacing: -.03em; font-size: 1.05rem; color: #f0f2f8;">Gantry</span>
+      <img src="assets/logo.png" alt="Trunnion" style="height: 26px; width: auto; filter: brightness(1.45) saturate(1.05);">
+      <span style="font-family: var(--font-display, 'Plus Jakarta Sans'), sans-serif; font-weight: 700; letter-spacing: -.03em; font-size: 1.05rem; color: #f0f2f8;">Trunnion</span>
     </a>
     <div style="display: flex; align-items: center; gap: clamp(.75rem, 2vw, 1.6rem); font-family: var(--font-mono, 'JetBrains Mono'), monospace; font-size: .6rem; letter-spacing: .18em; text-transform: uppercase; color: #6b7291;">
       <a href="#problem" style="color: #6b7291;">Problem</a>
@@ -43,7 +43,7 @@
       <a href="#concepts" style="color: #6b7291;">Concepts</a>
       <a href="#primitives" style="color: #6b7291;">Primitives</a>
       <a href="#console" style="color: #6b7291;">Console</a>
-      <a href="https://github.com/Mariano215/gantry" style="color: #2b7fe8; border: 1px solid rgba(43,127,232,.3); border-radius: 3px; padding: .45rem .7rem;">GitHub →</a>
+      <a href="https://github.com/Mariano215/trunnion" style="color: #2b7fe8; border: 1px solid rgba(43,127,232,.3); border-radius: 3px; padding: .45rem .7rem;">GitHub →</a>
     </div>
   </nav>
 
@@ -76,7 +76,7 @@
 
       <div data-rise style="animation: g-rise .7s cubic-bezier(.23,1,.32,1) both; animation-play-state: paused; animation-delay: .4s; display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .4rem;">
         <a href="#demo" style="display: inline-flex; align-items: center; gap: .5rem; background: #2b7fe8; color: #0d0e12; font-family: var(--font-display, sans-serif); font-weight: 700; font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; padding: .8rem 1.2rem; border-radius: 3px; transition: transform 160ms cubic-bezier(.23,1,.32,1), background 160ms;" style-hover="background: #1a4f9a; transform: translateY(-1px); color: #0d0e12;">Watch the first hour →</a>
-        <a href="https://github.com/Mariano215/gantry" style="display: inline-flex; align-items: center; gap: .5rem; background: rgba(19,21,32,.6); color: #f0f2f8; border: 1px solid #1e2235; font-family: var(--font-display, sans-serif); font-weight: 600; font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; padding: .8rem 1.2rem; border-radius: 3px; transition: border-color 160ms, transform 160ms;" style-hover="border-color: rgba(43,127,232,.4); transform: translateY(-1px); color: #f0f2f8;">Read the source</a>
+        <a href="https://github.com/Mariano215/trunnion" style="display: inline-flex; align-items: center; gap: .5rem; background: rgba(19,21,32,.6); color: #f0f2f8; border: 1px solid #1e2235; font-family: var(--font-display, sans-serif); font-weight: 600; font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; padding: .8rem 1.2rem; border-radius: 3px; transition: border-color 160ms, transform 160ms;" style-hover="border-color: rgba(43,127,232,.4); transform: translateY(-1px); color: #f0f2f8;">Read the source</a>
       </div>
     </div>
   </header>
@@ -235,7 +235,7 @@
 
         <div style="background: #08090d; display: flex; flex-direction: column; min-height: 460px;">
           <div style="display: flex; align-items: center; justify-content: space-between; padding: .6rem .9rem; border-bottom: 1px solid #14171f; font-family: var(--font-mono, monospace); font-size: .6rem; letter-spacing: .12em; color: #4d5570;">
-            <span>~/gantry — zsh</span>
+            <span>~/trunnion — zsh</span>
             <span>{{ progressLabel }}</span>
           </div>
           <div ref="{{ termRef }}" style="flex: 1; overflow: auto; padding: 1.1rem 1.1rem 1.6rem; font-family: var(--font-mono, monospace); font-size: .76rem; line-height: 1.75; max-height: 460px;">
@@ -269,7 +269,7 @@
       <div data-rise style="animation: g-rise .7s cubic-bezier(.23,1,.32,1) both; animation-play-state: paused;">
         <div style="font-family: var(--font-mono, monospace); font-size: .62rem; letter-spacing: .18em; text-transform: uppercase; color: #6b7291; margin-bottom: 1rem;">The vocabulary</div>
         <h2 style="margin: 0 0 1rem; font-family: var(--font-display, sans-serif); font-weight: 700; letter-spacing: -.03em; line-height: 1.08; font-size: clamp(1.8rem, 3.6vw, 2.9rem); max-width: 32ch;">Four ideas carry the whole design.</h2>
-        <p style="margin: 0; max-width: 62ch; color: #9aa3bd; line-height: 1.65; font-size: .95rem; text-wrap: pretty;">Capability, effect, rung and gate are one idea in four words. <a href="https://github.com/Mariano215/gantry/blob/main/docs/GLOSSARY.md">docs/GLOSSARY.md</a> defines every term, grouped by what you are trying to work out, and ends with the ones that are declared and not yet running.</p>
+        <p style="margin: 0; max-width: 62ch; color: #9aa3bd; line-height: 1.65; font-size: .95rem; text-wrap: pretty;">Capability, effect, rung and gate are one idea in four words. <a href="https://github.com/Mariano215/trunnion/blob/main/docs/GLOSSARY.md">docs/GLOSSARY.md</a> defines every term, grouped by what you are trying to work out, and ends with the ones that are declared and not yet running.</p>
       </div>
 
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1px; background: #1e2235; border: 1px solid #1e2235;">
@@ -382,8 +382,8 @@
           <div style="font-family: var(--font-mono, monospace); font-size: .58rem; letter-spacing: .2em; text-transform: uppercase; color: #6b7291; margin-bottom: .8rem;">Inclusion proof</div>
           <h3 style="margin: 0 0 .8rem; font-family: var(--font-display, sans-serif); font-weight: 600; letter-spacing: -.025em; font-size: clamp(1.1rem, 2vw, 1.4rem); color: #f0f2f8;">1,673 bytes, no ledger directory, no network.</h3>
           <p style="margin: 0 0 1rem; color: #9aa3bd; font-size: .89rem; line-height: 1.65; text-wrap: pretty;">Export one event as a bundle and check it somewhere else: one envelope, its index, a three-element proof and one signed head. That is the whole evidence package for “this decision was on the log, in this position, at this size.”</p>
-          <pre style="margin: 0; font-family: var(--font-mono, monospace); font-size: .72rem; line-height: 1.8; color: #6b7291; overflow-x: auto;"><span style="color: #2b7fe8;">$</span> gantry ledger prove /tmp/demo/ledger 4 &gt; bundle.json
-<span style="color: #2b7fe8;">$</span> gantry ledger verify-inclusion bundle.json ledger.pub
+          <pre style="margin: 0; font-family: var(--font-mono, monospace); font-size: .72rem; line-height: 1.8; color: #6b7291; overflow-x: auto;"><span style="color: #2b7fe8;">$</span> trunnion ledger prove /tmp/demo/ledger 4 &gt; bundle.json
+<span style="color: #2b7fe8;">$</span> trunnion ledger verify-inclusion bundle.json ledger.pub
 inclusion verified: entry 4 under signed head size 15</pre>
         </div>
         <svg viewBox="0 0 420 220" style="width: 100%; height: auto; font-family: var(--font-mono, monospace);" data-om-raster>
@@ -422,7 +422,7 @@ inclusion verified: entry 4 under signed head size 15</pre>
         <div style="display: flex; gap: 2rem; align-items: flex-end;">
           <div>
             <div style="font-family: var(--font-display, sans-serif); font-weight: 700; font-size: clamp(3.5rem, 8vw, 5.5rem); line-height: .9; letter-spacing: -.05em; color: #2b7fe8;">3</div>
-            <div style="font-family: var(--font-mono, monospace); font-size: .58rem; letter-spacing: .2em; text-transform: uppercase; color: #6b7291; margin-top: .5rem;">Overall level, Gantry scored by Gantry</div>
+            <div style="font-family: var(--font-mono, monospace); font-size: .58rem; letter-spacing: .2em; text-transform: uppercase; color: #6b7291; margin-top: .5rem;">Overall level, Trunnion scored by Trunnion</div>
           </div>
           <div style="font-family: var(--font-mono, monospace); font-size: .72rem; color: #6b7291; line-height: 1.7; padding-bottom: .4rem;">six layers at 4<br>six layers at 3<br><span style="color: #9aa3bd;">the minimum is the honest figure</span></div>
         </div>
@@ -453,7 +453,7 @@ inclusion verified: entry 4 under signed head size 15</pre>
           </div>
           <div style="border-top: 1px solid #1e2235; padding-top: 1.2rem;">
             <div style="display: flex; align-items: center; gap: .7rem; margin-bottom: .6rem;">
-              <span style="font-family: var(--font-mono, monospace); font-size: .55rem; letter-spacing: .2em; text-transform: uppercase; color: #6b7291;">Gantry scores</span>
+              <span style="font-family: var(--font-mono, monospace); font-size: .55rem; letter-spacing: .2em; text-transform: uppercase; color: #6b7291;">Trunnion scores</span>
               <span style="font-family: var(--font-display, sans-serif); font-weight: 700; font-size: 1.1rem; color: #2b7fe8;">{{ prim.score }}</span>
               <span style="display: flex; gap: 3px;">
                 <sc-for list="{{ prim.pips }}" as="pip" hint-placeholder-count="5">
@@ -466,7 +466,7 @@ inclusion verified: entry 4 under signed head size 15</pre>
         </div>
       </div>
 
-      <p data-rise style="animation: g-rise .7s cubic-bezier(.23,1,.32,1) both; animation-play-state: paused; margin: 0; max-width: 72ch; color: #6b7291; font-size: .86rem; line-height: 1.7; text-wrap: pretty;">The table is produced by <span style="font-family: var(--font-mono, monospace); color: #9aa3bd;">gantry score</span> reading a ledger that exercised the layers, not by reading a file. The scoring rules are data, so anyone holding an exported ledger re-derives the same twelve numbers without trusting the binary. Adding a scoring rule alone changes nothing, because the scorer reads telemetry: the number follows the record, including when the record is disappointing.</p>
+      <p data-rise style="animation: g-rise .7s cubic-bezier(.23,1,.32,1) both; animation-play-state: paused; margin: 0; max-width: 72ch; color: #6b7291; font-size: .86rem; line-height: 1.7; text-wrap: pretty;">The table is produced by <span style="font-family: var(--font-mono, monospace); color: #9aa3bd;">trunnion score</span> reading a ledger that exercised the layers, not by reading a file. The scoring rules are data, so anyone holding an exported ledger re-derives the same twelve numbers without trusting the binary. Adding a scoring rule alone changes nothing, because the scorer reads telemetry: the number follows the record, including when the record is disappointing.</p>
     </div>
   </section>
 
@@ -573,7 +573,7 @@ inclusion verified: entry 4 under signed head size 15</pre>
           <div style="font-family: var(--font-mono, monospace); font-size: .62rem; letter-spacing: .18em; text-transform: uppercase; color: #6b7291; margin-bottom: 1rem;">Start a harness of your own</div>
           <h2 style="margin: 0; font-family: var(--font-display, sans-serif); font-weight: 700; letter-spacing: -.03em; line-height: 1.1; font-size: clamp(1.6rem, 3vw, 2.3rem);">One command writes the whole layout, sensors included.</h2>
         </div>
-        <pre style="margin: 0; padding: 1.1rem; background: #08090d; border: 1px solid #1e2235; overflow-x: auto; font-family: var(--font-mono, monospace); font-size: .74rem; line-height: 1.85; color: #9aa3bd;"><span style="color: #2b7fe8;">$</span> gantry template init templates/laptop ~/my-harness
+        <pre style="margin: 0; padding: 1.1rem; background: #08090d; border: 1px solid #1e2235; overflow-x: auto; font-family: var(--font-mono, monospace); font-size: .74rem; line-height: 1.85; color: #9aa3bd;"><span style="color: #2b7fe8;">$</span> trunnion template init templates/laptop ~/my-harness
 template validates: profile laptop, 5 capabilities,
 8 rules, 3 providers, 12 scoring rules, 2 sensors
 wrote config/policy.json
@@ -611,7 +611,7 @@ zsh ci/run.sh   <span style="color: #4d5570;"># fmt, clippy as errors, offline s
     <div style="max-width: 72rem; margin: 0 auto; display: flex; flex-direction: column; gap: 2.5rem;">
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
         <div style="display: flex; flex-direction: column; gap: .9rem;">
-          <img src="assets/logo.png" alt="Gantry" style="height: 42px; width: auto; align-self: flex-start; filter: brightness(1.5) saturate(1.05);">
+          <img src="assets/logo.png" alt="Trunnion" style="height: 42px; width: auto; align-self: flex-start; filter: brightness(1.5) saturate(1.05);">
           <p style="margin: 0; color: #6b7291; font-size: .86rem; line-height: 1.65; max-width: 42ch;">Not an agent framework, not a chat product, not an eval platform, not a skills marketplace, not a compliance certification. It produces evidence. Interpreting that evidence against a regime is a separate job.</p>
         </div>
         <div>
@@ -625,7 +625,7 @@ zsh ci/run.sh   <span style="color: #4d5570;"># fmt, clippy as errors, offline s
       </div>
       <div style="display: flex; flex-wrap: wrap; gap: 1.2rem; justify-content: space-between; padding-top: 1.5rem; border-top: 1px solid #1e2235; font-family: var(--font-mono, monospace); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: #4d5570;">
         <span>Copyright Mariano215</span>
-        <a href="https://github.com/Mariano215/gantry" style="color: #6b7291;">github.com/Mariano215/gantry →</a>
+        <a href="https://github.com/Mariano215/trunnion" style="color: #6b7291;">github.com/Mariano215/trunnion →</a>
       </div>
     </div>
   </footer>
@@ -641,13 +641,13 @@ class Component extends DCLogic {
   STEPS = [
     {
       label: 'Build it and make a ledger',
-      cmd: 'cargo build && ./target/debug/gantry ledger init /tmp/demo/ledger',
+      cmd: 'cargo build && ./target/debug/trunnion ledger init /tmp/demo/ledger',
       out: [{ t: 'ledger initialised at /tmp/demo/ledger', c: '#9aa3bd' }],
       note: 'A directory holding an append-only event log, its signed tree heads, the payloads, and the ledger\u2019s own signing key. Nothing else needs to be running: no daemon, no database, no account.'
     },
     {
       label: 'The first denial',
-      cmd: 'gantry broker call /tmp/demo/ledger Bash "rm -rf /"',
+      cmd: 'trunnion broker call /tmp/demo/ledger Bash "rm -rf /"',
       out: [
         { t: 'policy denied Bash on rm -rf /: rule r-destructive-shell fired and the', c: '#ff5f5a' },
         { t: 'decision is on the ledger. Fix: This command is destructive and its', c: '#ff5f5a' },
@@ -661,7 +661,7 @@ class Component extends DCLogic {
     },
     {
       label: 'A call that runs',
-      cmd: 'gantry broker call /tmp/demo/ledger Read docs/PLAN.md',
+      cmd: 'trunnion broker call /tmp/demo/ledger Read docs/PLAN.md',
       out: [
         { t: '... file contents ...', c: '#9aa3bd' },
         { t: '[taint: true] (ledger sealed at size 15)', c: '#2b7fe8' }
@@ -670,7 +670,7 @@ class Component extends DCLogic {
     },
     {
       label: 'Check the record yourself',
-      cmd: 'gantry ledger verify /tmp/demo/ledger',
+      cmd: 'trunnion ledger verify /tmp/demo/ledger',
       out: [
         { t: 'entries: 15', c: '#f0f2f8' },
         { t: 'attestations verified against config/actor-keys.json: 15', c: '#f0f2f8' },
@@ -682,7 +682,7 @@ class Component extends DCLogic {
     },
     {
       label: 'What a tampered log looks like',
-      cmd: 'gantry ledger verify /tmp/demo/tampered',
+      cmd: 'trunnion ledger verify /tmp/demo/tampered',
       out: [
         { t: 'entries: 15', c: '#f0f2f8' },
         { t: 'attestations verified against config/actor-keys.json: 14', c: '#e0a13a' },
@@ -699,7 +699,7 @@ class Component extends DCLogic {
     },
     {
       label: 'Score what just happened',
-      cmd: 'gantry score /tmp/demo/ledger',
+      cmd: 'trunnion score /tmp/demo/ledger',
       out: [
         { t: '| Primitive               | Score | Evidence                          |', c: '#4d5570' },
         { t: '| 01 Instruction          |   3   | pack version-pinned on every run  |', c: '#9aa3bd' },
@@ -732,7 +732,7 @@ class Component extends DCLogic {
     { cmd: 'Read docs/PLAN.md', verdict: 'allow', rule: 'r-read-repo', capability: 'repo.read', effect: 'read', rung: 'autonomous', gate: 'none', message: 'Runs inside a per-run sandbox with the network denied. The result comes back with taint: true.', after: 'tool.request, policy.decision and tool.result all land on the ledger, with the result hash, the taint mark and the duration.' },
     { cmd: 'Read .env', verdict: 'deny', rule: 'r-credential-file', capability: 'repo.read', effect: 'read', rung: 'autonomous', gate: 'none', message: 'Reading a credential file is denied. Ask the broker for a handle and pass the handle name; the broker substitutes the value at the tool boundary.', after: 'The model never sees the secret at any point. The handle name is what appears on the event.' },
     { cmd: 'Bash "rm -rf /"', verdict: 'deny', rule: 'r-destructive-shell', capability: 'shell.exec', effect: 'write.local', rung: 'autonomous', gate: 'post', message: 'This command is destructive and its capability\u2019s rollback handle cannot recall it. Scope the deletion to a path the run owns, or route it through a capability whose rollback genuinely covers it.', after: 'The denial costs the capability a rung. A rung.change event sits between the decision and the result.' },
-    { cmd: 'Bash "git push origin main"', verdict: 'hold', rule: 'r-publish', capability: 'vcs.publish', effect: 'irreversible', rung: 'led', gate: 'pre', message: 'Rule r-publish gates this call pre and no approval on this ledger releases it. The decision carries obligation: approval — a human has to answer before the call runs.', after: 'gantry approve <ledger> <request-id> user:you@example.com records the answer, and the next attempt spends it. Approve and refuse earn the same score, because a refusal is the gate working.' },
+    { cmd: 'Bash "git push origin main"', verdict: 'hold', rule: 'r-publish', capability: 'vcs.publish', effect: 'irreversible', rung: 'led', gate: 'pre', message: 'Rule r-publish gates this call pre and no approval on this ledger releases it. The decision carries obligation: approval — a human has to answer before the call runs.', after: 'trunnion approve <ledger> <request-id> user:you@example.com records the answer, and the next attempt spends it. Approve and refuse earn the same score, because a refusal is the gate working.' },
     { cmd: 'Bash "curl https://api.example.com"', verdict: 'deny', rule: 'r-egress-laptop', capability: 'net.egress', effect: 'irreversible', rung: 'led', gate: 'pre', message: 'Egress is denied on the laptop profile, whose allowlist is empty. Add the host to profile_requirements.egress.allow and re-run, or perform this lookup outside the run and paste the result.', after: 'Egress is classified irreversible: a byte that has left cannot be unsent, and that one classification is what makes the gate table safe.' },
     { cmd: 'Terraform apply', verdict: 'deny', rule: 'r-default', capability: '—', effect: '—', rung: '—', gate: 'pre', message: 'No capability declares this tool. Add it to a capability in config/policy.json with an effect class and a rung, then re-run.', after: 'The default is deny, and it is a rule like any other, so the refusal still names itself. A deny rule shadowed by an earlier allow refuses to load rather than sitting there unreachable.' }
   ];
@@ -1075,7 +1075,7 @@ class Component extends DCLogic {
       docs: this.DOCS.map((d) => ({
         file: d.file,
         what: d.what,
-        href: 'https://github.com/Mariano215/gantry/blob/main/' + d.file
+        href: 'https://github.com/Mariano215/trunnion/blob/main/' + d.file
       }))
     };
   }

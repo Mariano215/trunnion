@@ -2,7 +2,7 @@
 """Render a terminal cast to an animated SVG, from output the binary produced.
 
 The tape holds commands, never their output. Every frame in the SVG is
-captured by running the command, so a cast cannot show a line gantry did not
+captured by running the command, so a cast cannot show a line trunnion did not
 print. Regenerate after any change to the output it shows:
 
     python3 dev/termcast.py dev/readme-cast.tape docs/assets/first-hour.svg
@@ -76,8 +76,8 @@ def wrap(text, cols):
 def run_tape(tape_path, binary):
     """Run the tape and return the screen: (kind, text) in the order shown."""
     repo = os.path.dirname(os.path.abspath(os.path.dirname(tape_path)))
-    bindir = tempfile.mkdtemp(prefix="gantry-cast-bin-")
-    os.symlink(os.path.abspath(binary), os.path.join(bindir, "gantry"))
+    bindir = tempfile.mkdtemp(prefix="trunnion-cast-bin-")
+    os.symlink(os.path.abspath(binary), os.path.join(bindir, "trunnion"))
     env = dict(os.environ, PATH=bindir + os.pathsep + os.environ.get("PATH", ""))
     # A cast that inherits the launching shell's mode would print a different
     # authority block depending on who ran it. Observe nothing instead.
@@ -213,7 +213,7 @@ def render(rows, total, cols=COLS):
         f'height="{height}" viewBox="0 0 {width} {height}" '
         f'font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" '
         f'font-size="{FONT}" role="img" '
-        f'aria-label="A terminal session: gantry refuses a destructive tool call, '
+        f'aria-label="A terminal session: trunnion refuses a destructive tool call, '
         f'then detects one altered event on the ledger">'
         f"<style>text{{white-space:pre}}</style>"
         f'<rect width="{width}" height="{height}" rx="8" fill="{BG}"/>'
@@ -222,7 +222,7 @@ def render(rows, total, cols=COLS):
         f'<line x1="0" y1="{CHROME}" x2="{width}" y2="{CHROME}" stroke="{LINE}"/>'
         f"{dots}"
         f'<text x="{width / 2:.0f}" y="{CHROME / 2 + 4:.0f}" fill="{DIM}" '
-        f'font-size="11" text-anchor="middle">gantry</text>'
+        f'font-size="11" text-anchor="middle">trunnion</text>'
         f"<style>{''.join(css)}</style>"
         f'<g opacity="1">{"".join(body)}</g>'
         f"</svg>\n"
@@ -258,7 +258,7 @@ def selftest():
     # A command that follows output waits for the block to be read.
     paced, _ = schedule([("cmd", "a"), ("out", "x"), ("cmd", "b")])
     assert paced[2][2] - paced[1][2] >= AFTER_OUT, paced
-    svg = render(*schedule([("cmd", "gantry"), ("out", "ok")]))
+    svg = render(*schedule([("cmd", "trunnion"), ("out", "ok")]))
     assert svg.startswith("<svg") and "@keyframes" in svg and "<script" not in svg
     assert "&amp;" not in svg
     print("termcast selftest ok")
@@ -271,9 +271,9 @@ if __name__ == "__main__":
     elif args[:1] == ["--selftest"]:
         selftest()
     elif len(args) == 2:
-        binary = os.environ.get("GANTRY_BIN", "target/debug/gantry")
+        binary = os.environ.get("TRUNNION_BIN", "target/debug/trunnion")
         if not os.path.exists(binary):
-            sys.exit(f"{binary} not built. Fix: run cargo build, or set GANTRY_BIN")
+            sys.exit(f"{binary} not built. Fix: run cargo build, or set TRUNNION_BIN")
         screen = run_tape(args[0], binary)
         with open(args[1], "w", encoding="utf-8") as handle:
             handle.write(render(*schedule(screen)))

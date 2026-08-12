@@ -27,8 +27,8 @@
 # Run from the repository root.
 set -e
 
-CHROME=${GANTRY_CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}
-PORT=${GANTRY_SITE_PORT:-8742}
+CHROME=${TRUNNION_CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}
+PORT=${TRUNNION_SITE_PORT:-8742}
 SITE=site
 
 if [ ! -f $SITE/index.html ]; then
@@ -36,7 +36,7 @@ if [ ! -f $SITE/index.html ]; then
   exit 1
 fi
 if [ ! -x "$CHROME" ]; then
-  echo "no headless browser at \"$CHROME\". Fix: install Google Chrome, or set GANTRY_CHROME to a Chromium binary that supports --headless --dump-dom. This check does not skip: a page nobody rendered is not a page that renders offline"
+  echo "no headless browser at \"$CHROME\". Fix: install Google Chrome, or set TRUNNION_CHROME to a Chromium binary that supports --headless --dump-dom. This check does not skip: a page nobody rendered is not a page that renders offline"
   exit 1
 fi
 
@@ -109,7 +109,7 @@ for i in $(seq 1 40); do
   sleep 0.25
 done
 if ! curl -sf -o /dev/null http://127.0.0.1:$PORT/; then
-  echo "nothing answered on 127.0.0.1:$PORT in 10s. Fix: the port may be taken; set GANTRY_SITE_PORT"
+  echo "nothing answered on 127.0.0.1:$PORT in 10s. Fix: the port may be taken; set TRUNNION_SITE_PORT"
   exit 1
 fi
 

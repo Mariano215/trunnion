@@ -80,9 +80,9 @@ fn the_trace_view_derives_no_edge_from_an_event_kind_alone() {
 
 /// Prescription and scoring stay apart, and not by intention.
 ///
-/// `contracts.yaml` says gantry does not read it and must not. The reason is
+/// `contracts.yaml` says trunnion does not read it and must not. The reason is
 /// the split the two projects are built on: harness-kit refuses to infer a
-/// level, gantry refuses to prescribe one. gantry vendors the contracts anyway,
+/// level, trunnion refuses to prescribe one. trunnion vendors the contracts anyway,
 /// because a remediation brief has to quote the requirement in the words that
 /// defined it, and the rule survives only while nothing that produces a number
 /// reads them. A scorer that started ranking against contract text would be a

@@ -1,6 +1,6 @@
 # Glossary
 
-Gantry's vocabulary is small but dense, and most of it is invented here rather
+Trunnion's vocabulary is small but dense, and most of it is invented here rather
 than borrowed. This page defines every term the running system uses, and ends
 with the terms the documents use that no code implements yet.
 
@@ -37,7 +37,7 @@ running system, so you can go and look.
 **Harness.** Everything around the model. The model writes the code; the
 harness decides whether the command it just proposed may run, what credentials
 it can see, what happens when a check fails, and whether anyone can reconstruct
-that afterwards. Gantry is a harness, and it is also a way of measuring one.
+that afterwards. Trunnion is a harness, and it is also a way of measuring one.
 Defined in `docs/PRIMITIVES.md`.
 
 **Primitive.** One of twelve layers a harness decomposes into, numbered 01
@@ -53,7 +53,7 @@ boundary that matters is 3 to 4: a layer carried only by a written rule caps at
 
 **Overall level.** The minimum across the primitives a workload exercises,
 never the average. One missing layer is what an attacker or an auditor finds,
-so averaging it away would be the wrong arithmetic. Printed by `gantry score`.
+so averaging it away would be the wrong arithmetic. Printed by `trunnion score`.
 
 **Chokepoint.** The single code path every call of a kind passes. Model calls
 pass `src/gateway.rs`, tool calls pass `src/broker.rs`. It exists so that
@@ -69,7 +69,7 @@ project can look well governed and score 2: guides are cheap and sensors are
 the thing nobody builds. Taken from Böckeler's taxonomy, credited in
 `README.md`.
 
-**Fault.** Gantry's error type: a `cause` and a `fix`, printed as
+**Fault.** Trunnion's error type: a `cause` and a `fix`, printed as
 `<cause>. Fix: <fix>`. The fix must name an action, because the reader is
 usually an agent, not a person. `src/lib.rs`. The console returns the same
 shape as JSON on an API error.
@@ -79,7 +79,7 @@ shape as JSON on an API error.
 ## Understanding the record
 
 The ledger is an append-only Merkle transparency log, RFC 6962 construction.
-`src/ledger.rs` and `src/merkle.rs`. You meet it through `gantry ledger`.
+`src/ledger.rs` and `src/merkle.rs`. You meet it through `trunnion ledger`.
 
 **Event.** One thing that happened, in a uniform shape. Nineteen kinds are
 documented in `docs/EVENT-SCHEMA.md` (`run.open`, `tool.request`,
@@ -122,28 +122,28 @@ the whole log in one hash.
 **Signed tree head.** `{size, root_hash, ts, key_id, sig}`, written on every
 append and signed by the ledger's own ed25519 key. It is what protects the
 newest entry: alter that entry and the recomputed root stops matching a head
-that was already signed. `gantry ledger verify` checks every head and faults if
+that was already signed. `trunnion ledger verify` checks every head and faults if
 any tail of the log has no head covering it, which was a real hole found in
 review (`docs/proof/01.md`).
 
 **Inclusion proof.** The sibling hashes that let someone recompute the root
 from one envelope alone, proving that event is in the log at that size. Produce
-one with `gantry ledger prove <dir> <index>`, check it with
-`gantry ledger verify-inclusion <bundle.json> <pubkey>`. The bundle is about
+one with `trunnion ledger prove <dir> <index>`, check it with
+`trunnion ledger verify-inclusion <bundle.json> <pubkey>`. The bundle is about
 1.7 KB and the check needs no server and no network.
 
 **Consistency proof.** The hashes that prove an older signed head is a prefix
 of a newer tree, so history was appended to and not rewritten. Produce one with
-`gantry ledger consistency <dir> <m>`, which emits both signed heads and the
-proof between them, and check it with `gantry ledger verify-consistency
+`trunnion ledger consistency <dir> <m>`, which emits both signed heads and the
+proof between them, and check it with `trunnion ledger verify-consistency
 <bundle.json> <pubkey>`. The old head is in the bundle as a head rather than a
 bare root because a root a stranger typed in proves nothing about what the log
 published; its signature is checked first.
 
 **Anchor.** A copy of a signed tree head kept somewhere the log's writer is
-not. `gantry ledger anchor <dir> <file>` writes one outside the ledger
+not. `trunnion ledger anchor <dir> <file>` writes one outside the ledger
 directory and records a `ledger.anchor` naming the destination, the tree size,
-the head and the time; `gantry ledger verify-anchor <dir> <file>` folds the
+the head and the time; `trunnion ledger verify-anchor <dir> <file>` folds the
 anchored root through a fresh consistency proof. It catches the one rewrite
 verification alone cannot see, a writer that drops its own tail and re-signs,
 and it catches it only for whoever holds the copy. An anchor is worth exactly
@@ -172,7 +172,7 @@ this project exists to prevent. `docs/CONSOLE-API.md`.
 **Published seed.** A signing key whose private half is in version control.
 The tracked laptop key is one (`config/actor-key-fixture.seed`), so a fresh
 checkout can produce signed runs with no key ceremony. The registry marks it
-`seed_published: true`, and every reporting path carries that: `gantry ledger
+`seed_published: true`, and every reporting path carries that: `trunnion ledger
 verify` prints a second line saying such signatures prove which run wrote the
 event and not who operated it, and the API returns `_attestation_trust:
 "fixture"` rather than `"registered"`. A profile other than `laptop` that
@@ -182,13 +182,13 @@ without it a laptop run and an HSM-backed deployment print the same sentence
 
 **Retention and expiry.** The lawful way to remove data: append a
 `retention.expire` event naming the subject hash, then delete the payload. The
-envelope and every proof survive. `gantry ledger expire` refuses to delete a
+envelope and every proof survive. `trunnion ledger expire` refuses to delete a
 payload no envelope references, and refuses an event submitted under any other
 kind. A payload that vanishes with no expiry event on record is a verification
 fault.
 
-**Secret scan.** `gantry ledger scan-secrets <dir>` greps every stored byte
-(envelopes, heads, payloads) for the values of the `GANTRY_HANDLE_*`
+**Secret scan.** `trunnion ledger scan-secrets <dir>` greps every stored byte
+(envelopes, heads, payloads) for the values of the `TRUNNION_HANDLE_*`
 environment variables, names the handle and file on a hit, and never echoes the
 value.
 
@@ -232,7 +232,7 @@ losing it takes a failure. `src/trust.rs`.
 `rung.change` events, starting at the declared rung. It is never stored in a
 field, so a third party recomputes it from the signed record. The broker gates
 on the earned rung, not the declared one, so a recorded demotion tightens the
-gate on the very next call. See it with `gantry trust history <ledger> <cap>`,
+gate on the very next call. See it with `trunnion trust history <ledger> <cap>`,
 or in the console's Trust view, which marks which of the two is gated on.
 
 **Gate placement.** `pre`, `post` or `none`, derived from the rung and the
@@ -258,13 +258,13 @@ outstanding.
 
 **Approval.** A human's answer to a held call, recorded as an `approval` event
 with `verdict` of `approve` or `deny`. Written by
-`gantry approve <ledger-dir> <request-id> <approver> [approve|deny]`. A
+`trunnion approve <ledger-dir> <request-id> <approver> [approve|deny]`. A
 refusal is an event, not an absence, because "nobody looked at this" and
 "somebody looked and said no" are different states and a missing event cannot
 tell them apart.
 
 **Call hash.** The canonical hash of a tool and its arguments, which is what an
-approval names. The request id cannot serve: every `gantry broker call` opens
+approval names. The request id cannot serve: every `trunnion broker call` opens
 a new run, so the retry of a held call carries an id the approver never saw.
 The request id is recorded on the approval anyway, as provenance, because it
 is what the approver was looking at.
@@ -274,7 +274,7 @@ finds its approval and runs. A grant is single use, bound to one call hash and
 one rule, so it releases one call and not the next. The `policy.decision` for
 that call still reads `hold`: the policy held it, and the release is a
 separate fact rather than a rewriting of the first one. An approval can never
-reverse a denial, because `gantry approve` refuses any request that did not
+reverse a denial, because `trunnion approve` refuses any request that did not
 resolve to `hold` and the broker consults approvals only on the hold branch.
 
 **Self-approval.** An approver who is also the calling identity. Permitted
@@ -292,7 +292,7 @@ the call has been held again since, and `ineffective` when the only approve
 grant is from an approver the trust budget does not permit. The state is the
 broker's own release test re-derived, so the page never shows a grant as
 releasing a call the broker would still hold. The view is read-only like the
-rest of the console: it prints the `gantry approve` command and a human runs
+rest of the console: it prints the `trunnion approve` command and a human runs
 it, because an approval names a person and a loopback port names nobody.
 
 **Rule id.** Every decision names one rule, so a denial stays explicable
@@ -310,12 +310,12 @@ positive and it can miss a clever pair of overlapping globs.
 
 **Host permission list.** The agent harness's own allow and deny lists, for
 Claude Code `.claude/settings.json`. It is a backstop, not the policy: a host
-`deny` short-circuits before Gantry's hook runs, so the denial is real and
+`deny` short-circuits before Trunnion's hook runs, so the denial is real and
 leaves no `policy.decision` and no named rule. Enforcement without evidence.
 
 **Host parity.** The check that every host `deny` entry, replayed through the
 policy, resolves to something other than allow, so a short-circuited denial is
-at least explicable after the fact. `gantry policy check config/policy.json
+at least explicable after the fact. `trunnion policy check config/policy.json
 .claude/settings.json`.
 
 **Profile.** One name that sets isolation, gates, anchoring and identity
@@ -340,9 +340,9 @@ list of fields that diverged. The cheapest way to answer the question is to
 never have an event that cannot.
 
 **Permission mode.** The mode the host agent is actually running under
-(`default`, `acceptEdits`, `bypassPermissions`, others). Gantry reads it from
+(`default`, `acceptEdits`, `bypassPermissions`, others). Trunnion reads it from
 `CLAUDE_PERMISSION_MODE`, which `.claude/hooks/permission-mode.sh` injects into
-any Bash command containing `gantry`. When nothing sets it, the event records
+any Bash command containing `trunnion`. When nothing sets it, the event records
 `"unobserved"`, never a guess.
 
 **Divergence.** The running value disagreeing with the tracked declaration.
@@ -353,7 +353,7 @@ mode differs from `permissions.defaultMode`). The two are independent and are
 listed separately.
 
 **Drift.** The comparison of every declared profile requirement against the
-running system. `gantry drift <ledger> <policy.json>` walks
+running system. `trunnion drift <ledger> <policy.json>` walks
 `profile_requirements`, reads each `observed_by` source and appends one
 `drift.report` per field, matches included, so silence is evidence rather than
 absence. Three outcomes: `match`, `divergence` (both values and the fix, exit
@@ -373,7 +373,7 @@ appends a `model.call` event whether the call succeeded or failed.
 **Broker.** The one path every tool call takes, `src/broker.rs`. Per call it
 appends a `tool.request`, evaluates the policy to exactly one
 `policy.decision`, executes only on allow, and appends a `tool.result` in every
-case, including denial. `gantry broker call <ledger> <tool> <target>`.
+case, including denial. `trunnion broker call <ledger> <tool> <target>`.
 
 **Tool registry.** The broker executes nothing whose definition it has not
 accepted. Definitions are MCP-shaped (`name`, `description`, `inputSchema`) and
@@ -410,8 +410,8 @@ extra space; the sandbox cannot, which is why `docs/proof/04.md` attacks both.
 
 **Credential handle.** The name an agent holds in place of a secret, written
 `{{handle:NAME}}` in a command. The broker reads the value from
-`GANTRY_SECRET_NAME` and injects it into the sandboxed child's environment as
-`GANTRY_HANDLE_NAME`, after the policy allowed the call. The value never enters
+`TRUNNION_SECRET_NAME` and injects it into the sandboxed child's environment as
+`TRUNNION_HANDLE_NAME`, after the policy allowed the call. The value never enters
 the command string, an event or a Fault. A handle the matched capability does
 not declare in its `credentials` list is refused, and the handle form is
 deliberately not valid shell, so an unsubstituted handle fails loudly instead of
@@ -422,7 +422,7 @@ its own capabilities and records a `subagent.spawn` event. From that event on,
 a call whose capability is outside the grant is denied at the same chokepoint
 as everything else, under rule `r-delegation`. The narrowing is enforced where
 every call already passes, not in the skill runner's diligence. Widening is
-refused. `gantry skill run <ledger> <package-dir> <parent-caps-csv>`.
+refused. `trunnion skill run <ledger> <package-dir> <parent-caps-csv>`.
 
 **Skill package.** A directory with a manifest and step files, optionally
 signed. `src/skills.rs`.
@@ -432,7 +432,7 @@ present, every referenced step file exists, signature verifies against a
 registered key. A package that fails is refused, never published on its title,
 and the refusal is a `skill.resolve` event. An unverifiable signature is
 refused rather than downgraded to unsigned, because a claim that fails to check
-is a lie and not an absence. `gantry skill resolve`.
+is a lie and not an absence. `trunnion skill resolve`.
 
 **Skill key registry.** `config/skill-keys.json`, the tracked trust root for
 skill signatures, with the same whole-file refusal rules as the actor key
@@ -441,7 +441,7 @@ replacement.
 
 **Checkpoint.** A `state.checkpoint` event carrying the whole accumulated
 result vector, written after each completed step. Resume needs nothing but the
-ledger. `gantry durable run` and `gantry durable resume`.
+ledger. `trunnion durable run` and `trunnion durable resume`.
 
 **Seam.** The visible join where a run died and another picked up: a run id
 that appears in `run.open` and never in `run.seal`, plus the later run
@@ -449,7 +449,7 @@ declaring which checkpoint it restored. No special marker event is needed; the
 append-only log plus the seal discipline already encode it. `durable::seam`.
 
 **Corpus graph.** A persisted index over a set of files that answers a symbol
-query by reading a fraction of what a flat scan reads. `gantry graph query`
+query by reading a fraction of what a flat scan reads. `trunnion graph query`
 ledgers each retrieval as a `graph.query` event with `bytes_read`,
 `index_bytes` and the stale files re-read. It reports its losses: a symbol
 added after indexing is missed until an expiry re-read recovers it, at a
@@ -457,9 +457,9 @@ measured byte cost. It is a token index without edges, so "traverse instead of
 re-read" is really "consult the index instead of re-read".
 
 **Template.** A validated bundle of policy, providers, scoring rules, sensors
-and instruction pack. `gantry template validate` loads every part through the
+and instruction pack. `trunnion template validate` loads every part through the
 same validators the runtime uses, so a shadowed rule or a sensor with no fix
-refuses the whole bundle. `gantry template init` copies one into a new
+refuses the whole bundle. `trunnion template init` copies one into a new
 directory, generates a fresh actor key for it, and never overwrites an existing
 file.
 
@@ -467,8 +467,8 @@ file.
 
 ## Understanding the checks
 
-`src/sensor.rs`. You meet these through `gantry sensor live`,
-`gantry sensor gate` and the verdicts on the ledger.
+`src/sensor.rs`. You meet these through `trunnion sensor live`,
+`trunnion sensor gate` and the verdicts on the ledger.
 
 **Sensor.** A check with an id, a placement, a shell command with `{target}`
 substituted, and a `fix` message. Exit zero passes. A sensor whose `fix` is
@@ -506,7 +506,7 @@ sensors cannot happen. The seal records it too, as
 **Blocking.** Whether a failing verdict stops the artifact. Verification that
 never blocks anything is a 2 on the rubric.
 
-**Liveness sweep.** `gantry sensor live <sensor.json>...` runs every control
+**Liveness sweep.** `trunnion sensor live <sensor.json>...` runs every control
 standalone, with no artifact. `ci/run.sh` runs it on every push and the
 workflow adds a weekly cron, so a sensor that rots between pushes is caught by
 the schedule rather than by the next unlucky verdict. Sample output:
@@ -522,7 +522,7 @@ on every verdict. Nothing dispatches on it; see the last section.
 
 ## Understanding the score
 
-`src/scorer.rs`, rules in `config/scoring.json`, run by `gantry score <ledger>`.
+`src/scorer.rs`, rules in `config/scoring.json`, run by `trunnion score <ledger>`.
 
 **Conformance scorer.** The rubric as a running service. Every predicate is a
 statement about ledger events, so it never reads a profile name or a config
@@ -558,7 +558,7 @@ append-only record. The scorer ignores `score.snapshot` events when scoring, so
 this does not recurse.
 
 **Self-score.** The twelve numbers in `README.md`, produced by running
-`gantry score` over a ledger that exercised the layers. It sits at overall 3
+`trunnion score` over a ledger that exercised the layers. It sits at overall 3
 because that is the minimum, and the minimum is the honest figure.
 
 ---
@@ -570,7 +570,7 @@ code implements today. They are listed because a term that reads as a running
 control and is not is worse than a missing one.
 
 **`observed_by` for the egress allowlist.** Every profile requirement names an
-observation source and `gantry drift` reads them, but the egress row's source
+observation source and `trunnion drift` reads them, but the egress row's source
 is not an observation in either of its declared forms. `netns.route_table`
 (the schema) needs a network namespace this host does not have, and
 `sandbox.egress_allow` (`config/policy.json`) is the seatbelt allowlist, which
@@ -578,7 +578,7 @@ is generated from the policy's own `egress.allow`, so reading it back compares
 the declaration with itself. Both report `unobservable`. The egress claim is
 carried by the policy document alone, and the scan says so on every run.
 
-**The rows beside a compared value.** `gantry drift` compares one value per
+**The rows beside a compared value.** `trunnion drift` compares one value per
 field. `egress.allow`, `ledger.anchoring`, `ledger.key_custody` and
 `identity.fallback_permitted` sit next to compared values and nothing reads
 them. `ledger: match` means a signed head exists, not that anchoring is `none`
@@ -589,8 +589,8 @@ runs on a schedule. The schedule is CI: `ci/run.sh` on every push and the
 weekly cron in `.github/workflows/ci.yml`. A harness installed from the
 template gets the subcommand and no schedule of its own.
 
-**Anchoring kinds and schedule.** `gantry ledger anchor` writes a file copy of
-the signed head and `gantry ledger verify-anchor` checks the log against it, so
+**Anchoring kinds and schedule.** `trunnion ledger anchor` writes a file copy of
+the signed head and `trunnion ledger verify-anchor` checks the log against it, so
 the `ledger.anchor` kind is emitted by something. What stays declared is the
 rest: `profile_requirements.ledger.anchoring` names `object_store`, `rfc3161`
 and `notary`, and nothing dispatches on the value, so a profile demanding an
@@ -633,25 +633,25 @@ not the transport.
 
 **Taint propagation.** Recorded, not propagated. See the taint entry above.
 
-**Retention rules.** `gantry ledger expire` records an expiry you hand it. The
+**Retention rules.** `trunnion ledger expire` records an expiry you hand it. The
 retention rule id is a field the caller writes. There is no scheduler and no
 rule engine deciding what expires when.
 
-**`gantry apply` and `gantry up`.** Named in
+**`trunnion apply` and `trunnion up`.** Named in
 `docs/CLAUDE-CODE-INTEGRATION.md` as the rest of the onboarding path. Neither
 is a subcommand. `apply` would scaffold missing layers as a reviewable diff,
 ranked by the rubric's remediation order; `up` would bring ledger, broker and
 sandbox up together on the `laptop` profile. The pieces run today as separate
-commands and nothing composes them. `gantry scan` has left this list: since
+commands and nothing composes them. `trunnion scan` has left this list: since
 slice 16 it reads a repository, scores the twelve primitives with a path behind
 every number or an explicit "looked in X, found nothing", reports the
 unenforced markers in the scanned repository's rule file, and writes
 nothing to the tree it reads. Its ceiling is 3, because a file shows a control
 present and only telemetry shows it running, so it does not replace
-`gantry score`. See `docs/proof/16.md`.
+`trunnion score`. See `docs/proof/16.md`.
 
 **Two policy version schemes.** The broker pins the computed content version of
-`config/policy.json`. The gateway smoke command `gantry run` still pins the
+`config/policy.json`. The gateway smoke command `trunnion run` still pins the
 byte hash of `docs/POLICY-SCHEMA.md`, so a `model.call` event from that path
 carries a different kind of value in the same field. Noted in
 `docs/proof/03.md` and still true.

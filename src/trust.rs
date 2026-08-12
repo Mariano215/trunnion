@@ -279,8 +279,10 @@ impl Orchestrator {
         // The sandbox lives on the sensor's own run; evaluate through a
         // throwaway SensorRun is heavy, so evaluate directly against a
         // per-step sandbox and record the verdict on this run.
-        let sandbox =
-            crate::sandbox::Sandbox::per_run(&crate::sandbox::unique_run_dir("gantry-orch"), &[])?;
+        let sandbox = crate::sandbox::Sandbox::per_run(
+            &crate::sandbox::unique_run_dir("trunnion-orch"),
+            &[],
+        )?;
         let content = std::fs::read_to_string(artifact).map_err(|e| {
             Fault::new(
                 format!("cannot read artifact {}: {e}", artifact.display()),

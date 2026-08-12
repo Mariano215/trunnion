@@ -1,8 +1,8 @@
-//! The registry that lets one gantry install answer for more than one
+//! The registry that lets one trunnion install answer for more than one
 //! repository.
 //!
-//! Every command before this one takes a path and reads it: `gantry scan
-//! <dir>`, `gantry console <ledger-dir>`. That is the right shape for a
+//! Every command before this one takes a path and reads it: `trunnion scan
+//! <dir>`, `trunnion console <ledger-dir>`. That is the right shape for a
 //! harness sitting inside the repository it governs, and the wrong shape for
 //! the question a review actually asks, which is about a set of repositories
 //! and how they compare. The workspace is a list of those repositories and
@@ -12,7 +12,7 @@
 //!
 //! What the registry deliberately does not hold: credentials. A git project is
 //! cloned by shelling out to `git`, which resolves the user's own credential
-//! helper; gantry stores no token, reads none, and runs the clone with
+//! helper; trunnion stores no token, reads none, and runs the clone with
 //! terminal prompting switched off, so a private URL fails with git's own
 //! message rather than blocking on a password nobody typed.
 //!
@@ -94,20 +94,20 @@ pub struct Workspace {
 /// know is refused rather than read as if the fields meant the same thing.
 pub const VERSION: u32 = 1;
 
-/// `$GANTRY_HOME`, or `~/.gantry`. The variable exists because a test that
+/// `$TRUNNION_HOME`, or `~/.trunnion`. The variable exists because a test that
 /// wrote to the operator's real registry would be a test that costs something
 /// to run.
 pub fn home() -> Result<PathBuf, Fault> {
-    if let Some(dir) = std::env::var_os("GANTRY_HOME") {
+    if let Some(dir) = std::env::var_os("TRUNNION_HOME") {
         return Ok(PathBuf::from(dir));
     }
     let home = std::env::var_os("HOME").ok_or_else(|| {
         Fault::new(
-            "neither GANTRY_HOME nor HOME is set, so there is nowhere to keep the workspace registry",
-            "set GANTRY_HOME to the directory the registry should live in, for example GANTRY_HOME=/var/lib/gantry",
+            "neither TRUNNION_HOME nor HOME is set, so there is nowhere to keep the workspace registry",
+            "set TRUNNION_HOME to the directory the registry should live in, for example TRUNNION_HOME=/var/lib/trunnion",
         )
     })?;
-    Ok(PathBuf::from(home).join(".gantry"))
+    Ok(PathBuf::from(home).join(".trunnion"))
 }
 
 pub fn registry_path(home: &Path) -> PathBuf {
@@ -132,14 +132,14 @@ impl Workspace {
             Err(e) => {
                 return Err(Fault::new(
                     format!("cannot read the workspace registry {}: {e}", path.display()),
-                    format!("check the permissions on {}; gantry reads the registry from GANTRY_HOME, which defaults to ~/.gantry", path.display()),
+                    format!("check the permissions on {}; trunnion reads the registry from TRUNNION_HOME, which defaults to ~/.trunnion", path.display()),
                 ))
             }
         };
         let workspace: Workspace = serde_json::from_str(&text).map_err(|e| {
             Fault::new(
                 format!("{} does not parse as a workspace registry: {e}", path.display()),
-                format!("the registry is {{ \"version\": {VERSION}, \"projects\": [ {{ \"id\", \"source\", \"ledger\", \"last_scan\", \"risk\" }} ] }}; fix {} by hand or move it aside and re-add the projects with gantry project add", path.display()),
+                format!("the registry is {{ \"version\": {VERSION}, \"projects\": [ {{ \"id\", \"source\", \"ledger\", \"last_scan\", \"risk\" }} ] }}; fix {} by hand or move it aside and re-add the projects with trunnion project add", path.display()),
             )
         })?;
         if workspace.version != VERSION {
@@ -149,7 +149,7 @@ impl Workspace {
                     path.display(),
                     workspace.version
                 ),
-                format!("upgrade gantry, or move {} aside and re-add the projects with gantry project add", path.display()),
+                format!("upgrade trunnion, or move {} aside and re-add the projects with trunnion project add", path.display()),
             ));
         }
         Ok(workspace)
@@ -158,8 +158,8 @@ impl Workspace {
     pub fn save(&self, home: &Path) -> Result<(), Fault> {
         std::fs::create_dir_all(home).map_err(|e| {
             Fault::new(
-                format!("cannot create the gantry home {}: {e}", home.display()),
-                format!("check the permissions on {}, or point GANTRY_HOME at a directory this user can write", home.display()),
+                format!("cannot create the trunnion home {}: {e}", home.display()),
+                format!("check the permissions on {}, or point TRUNNION_HOME at a directory this user can write", home.display()),
             )
         })?;
         let path = registry_path(home);
@@ -213,14 +213,14 @@ impl Workspace {
                     "the workspace already has a project called {id}, registered from {}",
                     source_text(&existing.source)
                 ),
-                format!("pass --id <id> to register {target} under a different name, or remove the existing one with gantry project remove {id}"),
+                format!("pass --id <id> to register {target} under a different name, or remove the existing one with trunnion project remove {id}"),
             ));
         }
         let source = if is_url(target) {
             let dest = cache_dir(home, &id);
             // An orphaned tree can sit here two ways: a project removed from
             // the registry left its clone behind, and a clone killed part way
-            // left a partial one. Both are gantry's own writes under its own
+            // left a partial one. Both are trunnion's own writes under its own
             // cache, under an id the duplicate check just proved no project
             // holds, so neither is anyone's working copy and neither is worth
             // making the operator delete by hand before re-adding.
@@ -255,10 +255,12 @@ impl Workspace {
             return Err(Fault::new(
                 format!("the workspace has no project called {id}"),
                 match self.projects.is_empty() {
-                    true => "the registry is empty; add one with gantry project add <path-or-url>"
-                        .to_string(),
+                    true => {
+                        "the registry is empty; add one with trunnion project add <path-or-url>"
+                            .to_string()
+                    }
                     false => format!(
-                        "registered ids are {}; see them with gantry project list",
+                        "registered ids are {}; see them with trunnion project list",
                         self.ids().join(", ")
                     ),
                 },
@@ -283,7 +285,7 @@ impl Workspace {
     }
 }
 
-/// Where a clone lives. One directory per project id, under the gantry home,
+/// Where a clone lives. One directory per project id, under the trunnion home,
 /// so nothing is written next to the repository being read.
 pub fn cache_dir(home: &Path, id: &str) -> PathBuf {
     home.join("cache").join(id)
@@ -315,7 +317,7 @@ fn default_id(target: &str) -> Result<String, Fault> {
     if name.is_empty() || name == "." || name == ".." {
         return Err(Fault::new(
             format!("cannot read a project id out of {target}"),
-            format!("pass --id <id>, for example gantry project add {target} --id my-project"),
+            format!("pass --id <id>, for example trunnion project add {target} --id my-project"),
         ));
     }
     Ok(name.to_string())
@@ -342,7 +344,7 @@ fn check_id(id: &str) -> Result<(), Fault> {
     }
     Err(Fault::new(
         format!("{id} is not usable as a project id"),
-        "an id is one path segment, because a clone is written to GANTRY_HOME/cache/<id>: use ASCII letters, digits, dash, underscore and dot, with no slash and no leading dash",
+        "an id is one path segment, because a clone is written to TRUNNION_HOME/cache/<id>: use ASCII letters, digits, dash, underscore and dot, with no slash and no leading dash",
     ))
 }
 
@@ -354,7 +356,7 @@ fn local_path(target: &str) -> Result<String, Fault> {
     let canonical = std::fs::canonicalize(target).map_err(|e| {
         Fault::new(
             format!("cannot register {target}: {e}"),
-            format!("check that {target} exists and is a directory; gantry project add takes the repository root, or a git URL when the repository is not on this machine"),
+            format!("check that {target} exists and is a directory; trunnion project add takes the repository root, or a git URL when the repository is not on this machine"),
         )
     })?;
     if !canonical.is_dir() {
@@ -368,8 +370,8 @@ fn local_path(target: &str) -> Result<String, Fault> {
 
 /// Drop a leftover checkout under the cache so a clone can be written there.
 ///
-/// The path is `$GANTRY_HOME/cache/<id>` and the caller has already proved no
-/// registered project holds that id, so this only ever removes a tree gantry
+/// The path is `$TRUNNION_HOME/cache/<id>` and the caller has already proved no
+/// registered project holds that id, so this only ever removes a tree trunnion
 /// wrote for a project that no longer exists. It removes nothing outside the
 /// cache: a path that is not under `home/cache` is a bug in the caller and is
 /// refused rather than deleted.
@@ -380,7 +382,7 @@ fn discard_orphan(dest: &Path) -> Result<(), Fault> {
     if dest.parent().and_then(|p| p.file_name()) != Some(std::ffi::OsStr::new("cache")) {
         return Err(Fault::new(
             format!("{} is not inside the clone cache", dest.display()),
-            "report this as a bug; gantry only ever discards a tree it wrote under GANTRY_HOME/cache/<id>",
+            "report this as a bug; trunnion only ever discards a tree it wrote under TRUNNION_HOME/cache/<id>",
         ));
     }
     std::fs::remove_dir_all(dest).map_err(|e| {
@@ -402,7 +404,7 @@ fn discard_orphan(dest: &Path) -> Result<(), Fault> {
 /// `GIT_TERMINAL_PROMPT=0` is the whole credential story: git resolves the
 /// user's own helper as it always does, and a URL it has no credential for
 /// fails with git's message instead of blocking on a password prompt inside
-/// whatever invoked gantry. Nothing here reads, stores or forwards a token.
+/// whatever invoked trunnion. Nothing here reads, stores or forwards a token.
 ///
 /// The URL is passed after `--` and refused if it begins with a dash, because
 /// otherwise it is not a URL, it is argv. `is_url` only asks for a transport,
@@ -428,7 +430,7 @@ fn clone(url: &str, dest: &Path) -> Result<(), Fault> {
         std::fs::create_dir_all(parent).map_err(|e| {
             Fault::new(
                 format!("cannot create the clone cache {}: {e}", parent.display()),
-                format!("check the permissions on {}, or point GANTRY_HOME at a directory this user can write", parent.display()),
+                format!("check the permissions on {}, or point TRUNNION_HOME at a directory this user can write", parent.display()),
             )
         })?;
     }
@@ -441,7 +443,7 @@ fn clone(url: &str, dest: &Path) -> Result<(), Fault> {
         .map_err(|e| {
             Fault::new(
                 format!("cannot run git to clone {url}: {e}"),
-                "install git and put it on PATH; gantry clones by running git so that your existing credential helper is the only thing holding a token",
+                "install git and put it on PATH; trunnion clones by running git so that your existing credential helper is the only thing holding a token",
             )
         })?;
     if !out.status.success() {
@@ -450,7 +452,7 @@ fn clone(url: &str, dest: &Path) -> Result<(), Fault> {
                 "git clone of {url} failed: {}",
                 String::from_utf8_lossy(&out.stderr).trim()
             ),
-            format!("check the URL and that this machine can reach it; a private repository needs a git credential helper that already answers for {url}, because gantry stores no token and never prompts for one"),
+            format!("check the URL and that this machine can reach it; a private repository needs a git credential helper that already answers for {url}, because trunnion stores no token and never prompts for one"),
         ));
     }
     Ok(())
@@ -499,7 +501,7 @@ mod tests {
 
     #[test]
     fn an_id_that_would_leave_the_cache_is_refused() {
-        assert!(check_id("gantry").is_ok());
+        assert!(check_id("trunnion").is_ok());
         assert!(check_id("claude-harness-core").is_ok());
         assert!(check_id("v0.2.0_draft").is_ok());
         // Every one of these is a path segment somewhere it should not be.

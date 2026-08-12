@@ -26,25 +26,25 @@
 # Run from the repository root, after cargo build.
 set -e
 
-CHROME=${GANTRY_CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}
-BIN=target/debug/gantry
+CHROME=${TRUNNION_CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}
+BIN=target/debug/trunnion
 
 # A check that skips when the browser is missing is a dead sensor reporting
 # green, which is the specific failure this project exists to prevent.
 if [ ! -x "$CHROME" ]; then
-  echo "no headless browser at \"$CHROME\". Fix: install Google Chrome, or set GANTRY_CHROME to a Chromium binary that supports --headless --dump-dom. This check does not skip: a console render check that passes when the browser is absent reports green for a page nobody rendered"
+  echo "no headless browser at \"$CHROME\". Fix: install Google Chrome, or set TRUNNION_CHROME to a Chromium binary that supports --headless --dump-dom. This check does not skip: a console render check that passes when the browser is absent reports green for a page nobody rendered"
   exit 1
 fi
 if [ ! -x "$BIN" ]; then
-  echo "no gantry binary at $BIN. Fix: run cargo build before ci/console-render.sh"
+  echo "no trunnion binary at $BIN. Fix: run cargo build before ci/console-render.sh"
   exit 1
 fi
 
-WORK=$(mktemp -d /tmp/gantry-console-render.XXXXXX)
+WORK=$(mktemp -d /tmp/trunnion-console-render.XXXXXX)
 L=$WORK/ledger
 TAMPERED=$WORK/tampered
 # The workspace registry this check writes to. Never the operator's own: a
-# check that registered a project in ~/.gantry would cost something to run.
+# check that registered a project in ~/.trunnion would cost something to run.
 WS_HOME=$WORK/home
 SERVER=
 BROKEN_SERVER=
@@ -111,7 +111,7 @@ $BIN approve $L $REQ_RELEASED user:mariano@local >/dev/null
 # takeover instead of the view under test.
 #
 # So the gap is made the way a real one is made: a producer numbers an event and
-# never writes it. `gantry ledger append` is the honest path, a real append
+# never writes it. `trunnion ledger append` is the honest path, a real append
 # through the real binary, and the appended event carries a seq above the one
 # the run last recorded. The two seqs in between were never written, which is
 # exactly what the report says about them.
@@ -132,7 +132,7 @@ jq -cs --arg r "$GAP_RUN" --argjson seq $GAP_BEFORE '
 # that silently made a fault, or no hole at all, would give the trace view
 # nothing to draw and the assertions below would test nothing.
 if ! VERIFY_OUT=$($BIN ledger verify $L); then
-  echo "the gap append left the fixture ledger failing verification, so the trace view would render the takeover instead. Fix: gantry ledger append no longer takes the NewEvent shape built above; run it by hand against a fresh ledger and read the failure\n$VERIFY_OUT"
+  echo "the gap append left the fixture ledger failing verification, so the trace view would render the takeover instead. Fix: trunnion ledger append no longer takes the NewEvent shape built above; run it by hand against a fresh ledger and read the failure\n$VERIFY_OUT"
   exit 1
 fi
 if ! print -r -- "$VERIFY_OUT" | grep -q "seq gap in run $GAP_RUN: last seq before the gap $GAP_AFTER, next seq after it $GAP_BEFORE, $GAP_MISSING event"; then
@@ -216,7 +216,7 @@ BROKEN_ORIGIN=$(origin_of $WORK/broken.log)
 
 # -- the third server: a workspace, and no ledger at all ----------------------
 #
-# `gantry console` with no ledger directory answers the workspace routes and
+# `trunnion console` with no ledger directory answers the workspace routes and
 # 404s every ledger route. That 404 is the case worth checking: it means "there
 # is no log here", and a console that read it as "the log here is damaged"
 # would meet an operator with a verification alarm on the first screen of a
@@ -225,9 +225,9 @@ BROKEN_ORIGIN=$(origin_of $WORK/broken.log)
 # The project registered is this repository, so the expected values come from
 # the same scanner ci/scan-evidence runs, read through the CLI rather than
 # through the route under test.
-GANTRY_HOME=$WS_HOME $BIN project add . --id gantry >/dev/null
-WS_SCAN=$(GANTRY_HOME=$WS_HOME $BIN project scan gantry)
-WS_BRIEF=$(GANTRY_HOME=$WS_HOME $BIN project remediate gantry)
+TRUNNION_HOME=$WS_HOME $BIN project add . --id trunnion >/dev/null
+WS_SCAN=$(TRUNNION_HOME=$WS_HOME $BIN project scan trunnion)
+WS_BRIEF=$(TRUNNION_HOME=$WS_HOME $BIN project remediate trunnion)
 # The overall level, how many primitives sit on it, and the evidence of one
 # that does: a sentence naming the paths the probe read and came back empty
 # from, which nothing but the scan produces.
@@ -241,11 +241,11 @@ WS_EVIDENCE=$(print -r -- "$WS_SCAN" | awk -F'|' -v o="$WS_OVERALL" '/^primitive
 WS_FIRST=$(print -r -- "$WS_BRIEF" | awk -F'|' '/^1\. primitive /{sub(/^1\. primitive [0-9]+ /,"",$1); sub(/ +$/,"",$1); print $1; exit}')
 WS_GAP=$(print -r -- "$WS_BRIEF" | awk '/^THE GAP$/{getline; sub(/^ +/,""); print; exit}')
 if [ "$WS_PRIMS" -ne 12 ] || [ -z "$WS_OVERALL" ] || [ "$WS_AT_FLOOR" -lt 1 ] || [ -z "$WS_EVIDENCE" ] || [ -z "$WS_FIRST" ] || [ -z "$WS_GAP" ]; then
-  echo "the workspace fixture produced $WS_PRIMS primitives, overall \"$WS_OVERALL\", $WS_AT_FLOOR at the floor, evidence \"$WS_EVIDENCE\", first brief \"$WS_FIRST\" and gap \"$WS_GAP\", so the assertions below would test nothing. Fix: run \"GANTRY_HOME=$WS_HOME $BIN project scan gantry\" and \"... project remediate gantry\" by hand and compare their output against the awk expressions in ci/console-render.sh"
+  echo "the workspace fixture produced $WS_PRIMS primitives, overall \"$WS_OVERALL\", $WS_AT_FLOOR at the floor, evidence \"$WS_EVIDENCE\", first brief \"$WS_FIRST\" and gap \"$WS_GAP\", so the assertions below would test nothing. Fix: run \"TRUNNION_HOME=$WS_HOME $BIN project scan trunnion\" and \"... project remediate trunnion\" by hand and compare their output against the awk expressions in ci/console-render.sh"
   exit 1
 fi
 
-GANTRY_HOME=$WS_HOME $BIN console > $WORK/workspace.log 2>&1 &
+TRUNNION_HOME=$WS_HOME $BIN console > $WORK/workspace.log 2>&1 &
 WS_SERVER=$!
 WS_ORIGIN=$(origin_of $WORK/workspace.log)
 
@@ -533,7 +533,7 @@ expect trace "none of its own" "a peer lane distinguishes having no events from 
 UNATT_N=$(jq -rs '[group_by(.actor.id)[] | {n: ([.[] | select(.attestation==null)] | length), total: length}] | map(select(.n > 0 and .n < .total)) | sort_by(-.n) | .[0].n' $L/events.jsonl)
 UNATT_TOTAL=$(jq -rs '[group_by(.actor.id)[] | {n: ([.[] | select(.attestation==null)] | length), total: length}] | map(select(.n > 0 and .n < .total)) | sort_by(-.n) | .[0].total' $L/events.jsonl)
 if [ -z "$UNATT_N" ] || [ "$UNATT_N" = "null" ]; then
-  echo "no lane on the fixture ledger has some but not all of its events unattested, so the assertion below could not tell a computed count from a lane's whole event count. Fix: the fixture stopped producing a mix of signed and unsigned events; check what gantry approve and gantry ledger append attach"
+  echo "no lane on the fixture ledger has some but not all of its events unattested, so the assertion below could not tell a computed count from a lane's whole event count. Fix: the fixture stopped producing a mix of signed and unsigned events; check what trunnion approve and trunnion ledger append attach"
   exit 1
 fi
 expect trace "class=\"warn-text mono\">$UNATT_N<" "the per-lane unattested count, taken off the ledger rather than from the column header"
@@ -575,7 +575,7 @@ expect trust "assisted" "the declared and earned rungs both render"
 expect trust "the broker gates on the earned rung" "declared and earned are compared on screen, and the denial in this fixture moved one of them"
 
 # Verify: /api/verify, and the offline command the console must print verbatim.
-expect verify "gantry ledger verify" "the reproduce command is printed verbatim, not paraphrased"
+expect verify "trunnion ledger verify" "the reproduce command is printed verbatim, not paraphrased"
 expect verify "class=\"stat-v\">$SIZE<" "the entry count the server checked is on screen as a number"
 expect verify "$ROOT" "the head the verification ran against is printed in full"
 
@@ -606,7 +606,7 @@ expect inbox "Why there is no approve button here" "the view states the reason i
 # The hold opened by its call hash: the detail behind a click, reached by
 # route instead. This is the copyable command, which is the whole point of an
 # inbox: without it an operator greps a ledger to find out a run is blocked.
-expect holdrow "gantry approve $LEDGER_REAL $REQ_WAITING" "the exact command that resolves the hold is rendered whole, naming the ledger being served and the request this one recorded, so it is runnable as printed"
+expect holdrow "trunnion approve $LEDGER_REAL $REQ_WAITING" "the exact command that resolves the hold is rendered whole, naming the ledger being served and the request this one recorded, so it is runnable as printed"
 expect holdrow "$CALL_WAITING" "the call hash a grant binds to is on the detail, because the request id is not what a grant names"
 
 # The ledger row opened by its event id: the expanded detail, and with it
@@ -621,7 +621,7 @@ expect eventrow "ed25519" "the attestation block renders the algorithm and key i
 # breaking a ledger rather than by reading the code that would refuse one.
 expect takeover "This ledger failed verification" "a ledger the server reported ok:false takes the interface over"
 expect takeover "$BROKEN_ID" "the fault table names the altered event, off the verification report"
-expect takeover "gantry ledger verify" "the takeover prints the offline command that reaches the same verdict without the server"
+expect takeover "trunnion ledger verify" "the takeover prints the offline command that reaches the same verdict without the server"
 expect takeover "It cannot be dismissed" "the banner that survives the dismissal is stated on the takeover itself"
 # The load-bearing half: the scorecard must not be behind it.
 refute takeover 'The twelve primitives'
@@ -631,13 +631,13 @@ refute takeover 'Attestation coverage'
 # /api/projects/:id/remediate, rendered by a console holding no ledger. Every
 # value below came off the CLI scanner at check time, so a field renamed on
 # either side fails here rather than leaving a blank chart.
-expect workspace "gantry" "the project index names the registered project"
+expect workspace "trunnion" "the project index names the registered project"
 expect workspace "data-label=\"overall $WS_OVERALL\"" "the rail carries the overall level, which is the minimum and not the average"
 expect workspace "$WS_AT_FLOOR primitive" "the verdict counts the primitives holding the rail down, which only a comparison of all twelve produces"
 expect workspace "$WS_EVIDENCE" "an evidence row prints the paths the probe read, so the scan's own words reached the screen"
 expect workspace "<h4>$WS_FIRST</h4>" "the queue's first entry is the contracts' first entry, so the console ranked nothing itself"
 expect workspace "$WS_GAP" "the brief's gap is quoted rather than paraphrased"
-expect workspace "gantry project remediate gantry --primitive" "each queued entry prints the command that produces its brief"
+expect workspace "trunnion project remediate trunnion --primitive" "each queued entry prints the command that produces its brief"
 # The load-bearing negative, in both directions. A console with no ledger must
 # not present a verification alarm, and must not present a chart as telemetry.
 refute workspace "This ledger failed verification"

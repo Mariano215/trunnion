@@ -1,4 +1,4 @@
-//! Slice 16 integration: `gantry scan` reads a repository and writes nothing.
+//! Slice 16 integration: `trunnion scan` reads a repository and writes nothing.
 //! The two properties that matter are that every number carries a path behind
 //! it, including the numbers that are zero, and that the tree the scan was
 //! pointed at is byte-identical afterwards. Both are asserted here, and the
@@ -6,13 +6,13 @@
 //! shape of the module, because a read-only property that depends on nobody
 //! adding a write later is a promise rather than a control.
 
-use gantry::scan::{scan, scan_keys, RepoRead, SMALLEST_REAL_KEY, STATIC_CEILING};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use trunnion::scan::{scan, scan_keys, RepoRead, SMALLEST_REAL_KEY, STATIC_CEILING};
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-scan-it-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-scan-it-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -118,7 +118,7 @@ fn the_scanner_holds_no_write_capable_filesystem_call() {
     ] {
         assert!(
             !source.contains(forbidden),
-            "src/scan.rs references {forbidden}; gantry scan is read-only, so every filesystem call in it goes through RepoRead, which has no write"
+            "src/scan.rs references {forbidden}; trunnion scan is read-only, so every filesystem call in it goes through RepoRead, which has no write"
         );
     }
 }
@@ -184,7 +184,7 @@ fn scanning_this_repository_stays_under_its_own_ceiling_and_reports_its_markers(
     }
     assert!(
         report.overall <= STATIC_CEILING,
-        "the static overall must not exceed the ceiling, and must not exceed what gantry score reads off a real ledger"
+        "the static overall must not exceed the ceiling, and must not exceed what trunnion score reads off a real ledger"
     );
     assert!(
         report
@@ -289,7 +289,7 @@ fn every_score_under_the_ceiling_names_what_would_raise_it() {
 
 /// A PEM block with a body this long, built at runtime rather than written
 /// out, because a 64-character base64 literal in this file would be a real key
-/// by the very measure under test and `gantry scan-keys` would fail on the
+/// by the very measure under test and `trunnion scan-keys` would fail on the
 /// test that proves it works.
 fn pem(kind: &str, body_chars: usize) -> String {
     format!(

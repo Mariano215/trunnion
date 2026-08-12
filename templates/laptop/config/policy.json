@@ -24,7 +24,7 @@
       "observed_by": "ledger.head"
     },
     "instruction_pack": {
-      "declared": "sha256:e087ac11abda95035cc13f487135e7be08c433b6faae3cbd81f3c62b2f906e34",
+      "declared": "sha256:68933f15c42611ee0650ad9de82c8bad41367ed697c36426caecb00e6bdf637d",
       "observed_by": "gateway.instruction_hash"
     },
     "host_permissions": {

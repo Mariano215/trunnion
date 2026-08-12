@@ -340,7 +340,7 @@ mod tests {
     use super::*;
 
     fn sandbox(name: &str, egress: &[String]) -> Sandbox {
-        let dir = std::env::temp_dir().join(format!("gantry-sbx-{}-{name}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("trunnion-sbx-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         Sandbox::per_run(&dir, egress).unwrap()
     }
@@ -374,7 +374,7 @@ mod tests {
     fn the_foreign_write_that_fails_inside_succeeds_outside() {
         let s = sandbox("contain", &[]);
         let foreign =
-            std::env::temp_dir().join(format!("gantry-sbx-contain-{}", std::process::id()));
+            std::env::temp_dir().join(format!("trunnion-sbx-contain-{}", std::process::id()));
         let _ = std::fs::remove_file(&foreign);
         let shell = format!("echo pwned > {}", foreign.display());
 
@@ -405,7 +405,7 @@ mod tests {
 
     #[test]
     fn environment_is_cleaned_and_injection_is_explicit() {
-        std::env::set_var("GANTRY_SBX_CANARY", "leak-me");
+        std::env::set_var("TRUNNION_SBX_CANARY", "leak-me");
         let s = sandbox("env", &[]);
         let out = s
             .command(
@@ -415,7 +415,7 @@ mod tests {
             .output()
             .unwrap();
         let text = String::from_utf8_lossy(&out.stdout).to_string();
-        std::env::remove_var("GANTRY_SBX_CANARY");
+        std::env::remove_var("TRUNNION_SBX_CANARY");
         assert!(!text.contains("leak-me"), "parent env leaked: {text}");
         assert!(
             text.contains("GRANTED=handle-value"),
@@ -427,7 +427,7 @@ mod tests {
     fn writes_outside_the_workdir_fail_inside() {
         let s = sandbox("writes", &[]);
         let foreign =
-            std::env::temp_dir().join(format!("gantry-sbx-foreign-{}", std::process::id()));
+            std::env::temp_dir().join(format!("trunnion-sbx-foreign-{}", std::process::id()));
         let _ = std::fs::remove_file(&foreign);
         let out = s
             .command(&format!("touch {}", foreign.display()), &[])

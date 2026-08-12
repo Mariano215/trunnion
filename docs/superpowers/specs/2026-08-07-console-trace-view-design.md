@@ -23,7 +23,7 @@ truth.
 
 ## The rule this view is under
 
-An arrow asserts a handoff. A Gantry event records one end of it: `actor` is
+An arrow asserts a handoff. A Trunnion event records one end of it: `actor` is
 who wrote the event. Nothing on the record says the gateway handed a call to
 the broker.
 
@@ -36,7 +36,7 @@ telemetry is wrong.
 
 The consequence is that the picture starts sparse. That sparseness is the
 finding. It names the handoffs this system does not observe, the same way
-`gantry drift` reports `unobservable` rather than `match`. Where the view
+`trunnion drift` reports `unobservable` rather than `match`. Where the view
 needs another arrow the fix is a producer recording a peer, never a renderer
 inferring one.
 
@@ -46,8 +46,8 @@ trust has to say what it refused to draw.
 
 ## Lanes
 
-A lane id is an event's `actor`, verbatim, serialised: `agent:gantry-run`,
-`agent:gantry-broker`, `system:sensor-bus`, `user:mariano@local`. Peer lanes
+A lane id is an event's `actor`, verbatim, serialised: `agent:trunnion-run`,
+`agent:trunnion-broker`, `system:sensor-bus`, `user:mariano@local`. Peer lanes
 are created only from a value a producer recorded: `provider:anthropic`,
 `tool:Bash`, and a child lane from a `subagent.spawn`.
 
@@ -137,7 +137,7 @@ where. Off by default: a broken axis is a reading aid, not the default truth.
 
 ## Holes in a lane
 
-`Ledger::seq_gaps` exists (`src/ledger.rs:679`) and `gantry ledger verify`
+`Ledger::seq_gaps` exists (`src/ledger.rs:679`) and `trunnion ledger verify`
 prints gaps. `/api/verify` does not return them: `src/console.rs:1122`
 serialises faults and attestation counts only, so nothing on the console has
 ever shown a gap.
@@ -204,6 +204,6 @@ the conformance delta, produced by running it.
 - Live streaming. The view reads on mount and on demand, like every other view.
   A polling flow graph is a different problem and the console has no push.
 - Any control that writes. `docs/CONSOLE-API.md` is read-only and this view
-  adds no exception. A held call shows the `gantry approve` command, as the
+  adds no exception. A held call shows the `trunnion approve` command, as the
   inbox does; a human runs it under their own identity.
 - Cross-ledger tracing. One ledger per console.

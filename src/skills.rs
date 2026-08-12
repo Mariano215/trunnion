@@ -339,7 +339,7 @@ mod tests {
     use super::*;
 
     fn pkg(name: &str) -> std::path::PathBuf {
-        let d = std::env::temp_dir().join(format!("gantry-skill-{}-{name}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("trunnion-skill-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(d.join("steps")).unwrap();
         d

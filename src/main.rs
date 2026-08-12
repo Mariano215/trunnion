@@ -1,20 +1,7 @@
 //! Thin CLI over the ledger library. Every subcommand is one library call
-//! plus printing; the verification logic lives in gantry::ledger so the
+//! plus printing; the verification logic lives in trunnion::ledger so the
 //! offline verifier is the library, not this file.
 
-use gantry::broker::{BrokerRun, ToolDef};
-use gantry::durable::DurableRun;
-use gantry::event::NewEvent;
-use gantry::gateway::{self, msg, GatewayRun, Pinning};
-use gantry::graph::Graph;
-use gantry::ledger::{self, InclusionBundle, Ledger};
-use gantry::policy::Policy;
-use gantry::scorer::Scoring;
-use gantry::sensor::{Sensor, SensorRun, Verdict};
-use gantry::skills::SkillManifest;
-use gantry::trust::Orchestrator;
-use gantry::workspace::{self, Project, Risk, Workspace};
-use gantry::Fault;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::env;
@@ -23,53 +10,66 @@ use std::io::{Read as _, Write as _};
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::Path;
 use std::process;
+use trunnion::broker::{BrokerRun, ToolDef};
+use trunnion::durable::DurableRun;
+use trunnion::event::NewEvent;
+use trunnion::gateway::{self, msg, GatewayRun, Pinning};
+use trunnion::graph::Graph;
+use trunnion::ledger::{self, InclusionBundle, Ledger};
+use trunnion::policy::Policy;
+use trunnion::scorer::Scoring;
+use trunnion::sensor::{Sensor, SensorRun, Verdict};
+use trunnion::skills::SkillManifest;
+use trunnion::trust::Orchestrator;
+use trunnion::workspace::{self, Project, Risk, Workspace};
+use trunnion::Fault;
 
 const USAGE: &str = "usage:
-  gantry ledger init <dir>
-  gantry ledger append <dir>                       (NewEvent JSON on stdin)
-  gantry ledger verify <dir>
-  gantry ledger prove <dir> <index>
-  gantry ledger verify-inclusion <bundle.json> <pubkey-file>
-  gantry ledger consistency <dir> <m>
-  gantry ledger verify-consistency <bundle.json> <pubkey-file>
-  gantry ledger anchor <dir> <anchor-file>          (outside <dir>)
-  gantry ledger verify-anchor <dir> <anchor-file>
-  gantry ledger expire <dir> <subject_hash>         (NewEvent JSON on stdin)
-  gantry ledger scan-secrets <dir>                  (values from GANTRY_HANDLE_*)
-  gantry run <providers.json> <provider-name> <ledger-dir>
-  gantry policy check <policy.json> [settings.json]
-  gantry drift <ledger-dir> <policy.json>
-  gantry broker register <ledger-dir> <tool-def.json>
-  gantry broker call <ledger-dir> <tool> <target>
-  gantry audit <ledger-dir> <providers.json> <provider> <file>
-  gantry sensor live <sensor.json>...
-  gantry sensor gate <ledger-dir> <sensor.json> <artifact>
-  gantry sensor repair <ledger-dir> <sensor.json> <artifact> <providers.json> <provider>
-  gantry orchestrate step <ledger-dir> <capability> <sensor.json> <artifact> [approver]
-  gantry approve <ledger-dir> <request-id> <approver> [approve|deny]
-  gantry trust history <ledger-dir> <capability>
-  gantry durable run <ledger-dir> <task-id> <crash-after|-> <file>...
-  gantry durable resume <ledger-dir> <task-id> <file>...
-  gantry durable show <ledger-dir> <task-id>
-  gantry graph build <graph.json> <file>...
-  gantry graph query <ledger-dir> <graph.json> <symbol>
-  gantry graph compare <graph.json> <symbol> <file>...
-  gantry scan <repo-dir>                            (read-only, writes nothing)
-  gantry scan-keys <dir>                            (read-only; fails on a real private key)
-  gantry project add <path-or-url> [--id <id>] [--risk internal|client_facing|regulated]
-  gantry project list
-  gantry project remove <id>
-  gantry project scan [<id>]                        (every project when the id is omitted)
-  gantry project remediate <id> [--primitive <n>]   (paste-ready briefs, worst first)
-  gantry score <ledger-dir> [scoring.json] [console.html]
-  gantry console                                    (workspace: every registered project)
-  gantry console <ledger-dir> [127.0.0.1:port]      (one ledger)
-  gantry skill resolve <ledger-dir> <package-dir> [pubkey-hex]
-  gantry skill delegate <parent-caps-csv> <package-dir>
-  gantry skill run <ledger-dir> <package-dir> <parent-caps-csv>
-  gantry skill sign <package-dir> <seed-hex>
-  gantry template validate <template-dir>
-  gantry template init <template-dir> <dest-dir>";
+  trunnion ledger init <dir>
+  trunnion ledger append <dir>                       (NewEvent JSON on stdin)
+  trunnion ledger verify <dir>
+  trunnion ledger prove <dir> <index>
+  trunnion ledger verify-inclusion <bundle.json> <pubkey-file>
+  trunnion ledger consistency <dir> <m>
+  trunnion ledger verify-consistency <bundle.json> <pubkey-file>
+  trunnion ledger anchor <dir> <anchor-file>          (outside <dir>)
+  trunnion ledger verify-anchor <dir> <anchor-file>
+  trunnion ledger expire <dir> <subject_hash>         (NewEvent JSON on stdin)
+  trunnion ledger scan-secrets <dir>                  (values from TRUNNION_HANDLE_*)
+  trunnion run <providers.json> <provider-name> <ledger-dir>
+  trunnion policy check <policy.json> [settings.json]
+  trunnion drift <ledger-dir> <policy.json>
+  trunnion broker register <ledger-dir> <tool-def.json>
+  trunnion broker call <ledger-dir> <tool> <target>
+  trunnion audit <ledger-dir> <providers.json> <provider> <file>
+  trunnion sensor live <sensor.json>...
+  trunnion sensor gate <ledger-dir> <sensor.json> <artifact>
+  trunnion sensor repair <ledger-dir> <sensor.json> <artifact> <providers.json> <provider>
+  trunnion orchestrate step <ledger-dir> <capability> <sensor.json> <artifact> [approver]
+  trunnion approve <ledger-dir> <request-id> <approver> [approve|deny]
+  trunnion trust history <ledger-dir> <capability>
+  trunnion durable run <ledger-dir> <task-id> <crash-after|-> <file>...
+  trunnion durable resume <ledger-dir> <task-id> <file>...
+  trunnion durable show <ledger-dir> <task-id>
+  trunnion graph build <graph.json> <file>...
+  trunnion graph query <ledger-dir> <graph.json> <symbol>
+  trunnion graph compare <graph.json> <symbol> <file>...
+  trunnion scan <repo-dir>                            (read-only, writes nothing)
+  trunnion scan-keys <dir>                            (read-only; fails on a real private key)
+  trunnion project add <path-or-url> [--id <id>] [--risk internal|client_facing|regulated]
+  trunnion project list
+  trunnion project remove <id>
+  trunnion project scan [<id>]                        (every project when the id is omitted)
+  trunnion project remediate <id> [--primitive <n>]   (paste-ready briefs, worst first)
+  trunnion score <ledger-dir> [scoring.json] [console.html]
+  trunnion console                                    (workspace: every registered project)
+  trunnion console <ledger-dir> [127.0.0.1:port]      (one ledger)
+  trunnion skill resolve <ledger-dir> <package-dir> [pubkey-hex]
+  trunnion skill delegate <parent-caps-csv> <package-dir>
+  trunnion skill run <ledger-dir> <package-dir> <parent-caps-csv>
+  trunnion skill sign <package-dir> <seed-hex>
+  trunnion template validate <template-dir>
+  trunnion template init <template-dir> <dest-dir>";
 
 fn main() {
     match run() {
@@ -104,7 +104,7 @@ fn run() -> Result<i32, Fault> {
         ["ledger", "verify", dir] => {
             let keys_path = Path::new("config/actor-keys.json");
             let (actor_keys, published): (Vec<String>, Vec<String>) = if keys_path.exists() {
-                let registry = gantry::skills::KeyRegistry::load(keys_path)?;
+                let registry = trunnion::skills::KeyRegistry::load(keys_path)?;
                 (registry.key_hexes(), registry.published_seed_hexes())
             } else {
                 (Vec::new(), Vec::new())
@@ -145,7 +145,7 @@ fn run() -> Result<i32, Fault> {
             // be the verifier claiming something it cannot prove.
             for gap in &report.seq_gaps {
                 println!(
-                    "seq gap in run {}: last seq before the gap {}, next seq after it {}, {} event(s) missing. Fix: this run's record is partial, so read it as evidence of a harness that stopped writing (check the wrapper's exit path and the hook that invokes gantry) rather than as an altered log; the chain and the heads verify, so nothing was removed after append",
+                    "seq gap in run {}: last seq before the gap {}, next seq after it {}, {} event(s) missing. Fix: this run's record is partial, so read it as evidence of a harness that stopped writing (check the wrapper's exit path and the hook that invokes trunnion) rather than as an altered log; the chain and the heads verify, so nothing was removed after append",
                     gap.run_id, gap.after, gap.before, gap.missing
                 );
             }
@@ -161,10 +161,10 @@ fn run() -> Result<i32, Fault> {
         }
         ["ledger", "scan-secrets", dir] => {
             let secrets: Vec<(String, String)> = env::vars()
-                .filter(|(k, _)| k.starts_with("GANTRY_HANDLE_"))
+                .filter(|(k, _)| k.starts_with("TRUNNION_HANDLE_"))
                 .collect();
             if secrets.is_empty() {
-                println!("no GANTRY_HANDLE_* values in the environment; nothing to scan for");
+                println!("no TRUNNION_HANDLE_* values in the environment; nothing to scan for");
                 return Ok(0);
             }
             let hits = ledger::scan_for_secrets(Path::new(dir), &secrets)?;
@@ -193,7 +193,7 @@ fn run() -> Result<i32, Fault> {
             let bundle: InclusionBundle = serde_json::from_str(&bundle_text).map_err(|e| {
                 Fault::new(
                     format!("{bundle_path} does not parse as an inclusion bundle: {e}"),
-                    "regenerate it with gantry ledger prove <dir> <index>",
+                    "regenerate it with trunnion ledger prove <dir> <index>",
                 )
             })?;
             match ledger::verify_bundle(&bundle, &pub_key) {
@@ -223,7 +223,7 @@ fn run() -> Result<i32, Fault> {
                 serde_json::from_str(&bundle_text).map_err(|e| {
                     Fault::new(
                         format!("{bundle_path} does not parse as a consistency bundle: {e}"),
-                        "regenerate it with gantry ledger consistency <dir> <m>",
+                        "regenerate it with trunnion ledger consistency <dir> <m>",
                     )
                 })?;
             match ledger::verify_consistency_bundle(&bundle, &pub_key) {
@@ -258,7 +258,7 @@ fn run() -> Result<i32, Fault> {
                 .map_err(|e| {
                     Fault::new(
                         format!("{anchor_path} does not parse as a signed head: {e}"),
-                        "point at a file written by gantry ledger anchor",
+                        "point at a file written by trunnion ledger anchor",
                     )
                 })?;
             let ledger_dir = Path::new(dir);
@@ -319,7 +319,7 @@ fn run() -> Result<i32, Fault> {
                 instructions: pack_path.into(),
                 settings: Some(settings_path).filter(|p| p.exists()).map(Into::into),
                 diverged: settings_divergence(settings_path),
-                permission_mode: gantry::gateway::observed_permission_mode(),
+                permission_mode: trunnion::gateway::observed_permission_mode(),
             };
             let system = read_file(&pack_path.display().to_string())?;
             let mut run = GatewayRun::open(ledger, "gateway-smoke", &pin)?;
@@ -433,24 +433,24 @@ fn run() -> Result<i32, Fault> {
         ["graph", "compare", graph_path, symbol, files @ ..] if !files.is_empty() => {
             graph_compare(graph_path, symbol, files)
         }
-        ["console"] => gantry::console::serve(None, "127.0.0.1:0"),
-        ["console", ledger_dir] => gantry::console::serve(Some(ledger_dir), "127.0.0.1:0"),
-        ["console", ledger_dir, addr] => gantry::console::serve(Some(ledger_dir), addr),
+        ["console"] => trunnion::console::serve(None, "127.0.0.1:0"),
+        ["console", ledger_dir] => trunnion::console::serve(Some(ledger_dir), "127.0.0.1:0"),
+        ["console", ledger_dir, addr] => trunnion::console::serve(Some(ledger_dir), addr),
         ["scan", repo_dir] => {
             // Read-only by construction: RepoRead is the only filesystem
             // access the scanner has and it exposes no write. Nothing is
             // appended to a ledger either, because a scan of somebody else's
             // repository has no ledger to append to.
-            let repo = gantry::scan::RepoRead::open(Path::new(repo_dir))?;
-            print!("{}", gantry::scan::scan(&repo).text());
+            let repo = trunnion::scan::RepoRead::open(Path::new(repo_dir))?;
+            print!("{}", trunnion::scan::scan(&repo).text());
             Ok(0)
         }
         ["scan-keys", dir] => {
             // The check that stands behind a secret scanner exemption. Same
             // read-only construction as scan, and the exit status is the
             // verdict so a CI gate needs no output parsing.
-            let repo = gantry::scan::RepoRead::open(Path::new(dir))?;
-            let keys = gantry::scan::scan_keys(&repo);
+            let repo = trunnion::scan::RepoRead::open(Path::new(dir))?;
+            let keys = trunnion::scan::scan_keys(&repo);
             print!("{}", keys.text());
             Ok(if keys.ok() { 0 } else { 1 })
         }
@@ -541,16 +541,16 @@ fn drift_scan(ledger_dir: &str, policy_path: &str) -> Result<i32, Fault> {
     let settings = Some(settings_path).filter(|p| p.exists());
     // Observed before the run appends anything: a walk that read the ledger
     // after writing its own reports would be observing itself.
-    let running = gantry::drift::Running::observe(&ledger, instructions, settings);
-    let reports = gantry::drift::walk(&policy, &running);
+    let running = trunnion::drift::Running::observe(&ledger, instructions, settings);
+    let reports = trunnion::drift::walk(&policy, &running);
     let mut diverged = settings_divergence(settings_path);
-    diverged.extend(gantry::drift::diverged_ids(&reports));
+    diverged.extend(trunnion::drift::diverged_ids(&reports));
     let pin = Pinning {
         policy: policy_path.into(),
         instructions: instructions.into(),
         settings: settings.map(Into::into),
         diverged,
-        permission_mode: gantry::gateway::observed_permission_mode(),
+        permission_mode: trunnion::gateway::observed_permission_mode(),
     };
     let authority = pin.authority(
         &policy.profile,
@@ -562,17 +562,17 @@ fn drift_scan(ledger_dir: &str, policy_path: &str) -> Result<i32, Fault> {
         "identity_source": "local",
         "rung": null,
     });
-    let signer = gantry::runlog::ActorSigner::declared(
+    let signer = trunnion::runlog::ActorSigner::declared(
         &policy.profile,
         &policy.profile_requirements,
         gateway::policy_dir(Path::new(policy_path)),
     )?;
-    let mut run = gantry::runlog::RunCore::open(ledger, actor, authority).signed_by(signer);
+    let mut run = trunnion::runlog::RunCore::open(ledger, actor, authority).signed_by(signer);
     for report in &reports {
         run.append("drift.report", report.subject())?;
         println!("{}", report.line());
     }
-    let (matched, divergences, gaps) = gantry::drift::tally(&reports);
+    let (matched, divergences, gaps) = trunnion::drift::tally(&reports);
     let head = run.seal(
         json!({"drift": {"match": matched, "divergence": divergences, "unobservable": gaps}}),
         "complete",
@@ -753,7 +753,7 @@ fn durable_show(ledger_dir: &str, task_id: &str) -> Result<i32, Fault> {
     let ledger = Ledger::open(Path::new(ledger_dir))?;
     let events = ledger.events_with_subjects()?;
     println!("durable task {task_id}:");
-    for line in gantry::durable::seam(&events, task_id) {
+    for line in trunnion::durable::seam(&events, task_id) {
         println!("  {line}");
     }
     Ok(0)
@@ -766,7 +766,7 @@ fn durable_pin() -> Pinning {
         instructions: Path::new("instructions/pack.md").into(),
         settings: Some(settings_path).filter(|p| p.exists()).map(Into::into),
         diverged: settings_divergence(settings_path),
-        permission_mode: gantry::gateway::observed_permission_mode(),
+        permission_mode: trunnion::gateway::observed_permission_mode(),
     }
 }
 
@@ -786,12 +786,12 @@ fn score(ledger_dir: &str, rules_path: &str, console: Option<&str>) -> Result<i3
     let policy_version = policy.policy_version.clone().unwrap_or_default();
     let pin = durable_pin();
     let authority = pin.authority(&policy.profile, &policy_version)?;
-    ledger.append(gantry::event::NewEvent {
+    ledger.append(trunnion::event::NewEvent {
         id: format!("score-{}", snapshot.events_scored),
         run_id: "run-scorer".to_string(),
         parent_id: None,
         seq: 0,
-        ts: gantry::gateway::rfc3339_now(),
+        ts: trunnion::gateway::rfc3339_now(),
         kind: "score.snapshot".to_string(),
         actor: json!({"type": "system", "id": "system:scorer", "identity_source": "local", "rung": null}),
         authority,
@@ -801,7 +801,7 @@ fn score(ledger_dir: &str, rules_path: &str, console: Option<&str>) -> Result<i3
     })?;
 
     if let Some(path) = console {
-        fs::write(path, gantry::console::scorecard_html(&snapshot)).map_err(|e| {
+        fs::write(path, trunnion::console::scorecard_html(&snapshot)).map_err(|e| {
             Fault::new(
                 format!("cannot write console {path}: {e}"),
                 "check the directory is writable",
@@ -823,7 +823,7 @@ fn skill_resolve(ledger_dir: &str, package_dir: &str, extra_keys: &[String]) -> 
     // command line is added to it for one resolution, not a replacement.
     let registry_path = Path::new("config/skill-keys.json");
     let mut registry: Vec<String> = if registry_path.exists() {
-        gantry::skills::KeyRegistry::load(registry_path)?.key_hexes()
+        trunnion::skills::KeyRegistry::load(registry_path)?.key_hexes()
     } else {
         Vec::new()
     };
@@ -880,7 +880,7 @@ fn skill_run(ledger_dir: &str, package_dir: &str, parent_caps: &str) -> Result<i
     let manifest = SkillManifest::load(&pkg.join("skill.json"))?;
     let registry_path = Path::new("config/skill-keys.json");
     let registry: Vec<String> = if registry_path.exists() {
-        gantry::skills::KeyRegistry::load(registry_path)?.key_hexes()
+        trunnion::skills::KeyRegistry::load(registry_path)?.key_hexes()
     } else {
         Vec::new()
     };
@@ -918,7 +918,7 @@ fn skill_run(ledger_dir: &str, package_dir: &str, parent_caps: &str) -> Result<i
         .filter(|s| !s.is_empty())
         .map(String::from)
         .collect();
-    let granted = gantry::skills::delegate(&parent, &resolved.scope)?;
+    let granted = trunnion::skills::delegate(&parent, &resolved.scope)?;
     drop(ledger);
 
     let mut run = open_broker(ledger_dir, &format!("skill:{}", resolved.id))?;
@@ -956,8 +956,8 @@ fn skill_run(ledger_dir: &str, package_dir: &str, parent_caps: &str) -> Result<i
 /// is caught by the sweep, not by the next unlucky verdict. Exits non-zero
 /// if any sensor is broken.
 fn sensor_live(sensor_paths: &[&str]) -> Result<i32, Fault> {
-    let sandbox = gantry::sandbox::Sandbox::per_run(
-        &gantry::sandbox::unique_run_dir("gantry-liveness"),
+    let sandbox = trunnion::sandbox::Sandbox::per_run(
+        &trunnion::sandbox::unique_run_dir("trunnion-liveness"),
         &[],
     )?;
     let mut broken = 0u32;
@@ -1075,7 +1075,7 @@ fn template_validate(template_dir: &str) -> Result<Vec<std::path::PathBuf>, Faul
                 if rel == ".gitignore" {
                     "add a .gitignore naming config/actor-key.seed; template init generates that seed and a harness that commits it signs as an identity anyone can forge"
                 } else {
-                    "a sensor here carries a PEM private key header as a negative control, so add the scanner exemption for it and run gantry scan-keys in the harness's gate; an exemption with no check behind it is a switched-off sensor"
+                    "a sensor here carries a PEM private key header as a negative control, so add the scanner exemption for it and run trunnion scan-keys in the harness's gate; an exemption with no check behind it is a switched-off sensor"
                 },
             ));
         }
@@ -1084,7 +1084,7 @@ fn template_validate(template_dir: &str) -> Result<Vec<std::path::PathBuf>, Faul
 
     let keys_path = dir.join("config/skill-keys.json");
     let key_count = if keys_path.exists() {
-        let n = gantry::skills::KeyRegistry::load(&keys_path)?.keys.len();
+        let n = trunnion::skills::KeyRegistry::load(&keys_path)?.keys.len();
         files.push(keys_path);
         n
     } else {
@@ -1178,8 +1178,8 @@ fn template_init(template_dir: &str, dest_dir: &str) -> Result<i32, Fault> {
     // stands behind the exemption the template just copied, and running it
     // once here means the operator is told the count rather than discovering
     // it from a scanner alert.
-    let repo = gantry::scan::RepoRead::open(dest_root)?;
-    let keys = gantry::scan::scan_keys(&repo);
+    let repo = trunnion::scan::RepoRead::open(dest_root)?;
+    let keys = trunnion::scan::scan_keys(&repo);
     if !keys.ok() {
         return Err(Fault::new(
             format!("the template put key material in {dest_dir}:\n{}", keys.text()),
@@ -1187,9 +1187,9 @@ fn template_init(template_dir: &str, dest_dir: &str) -> Result<i32, Fault> {
         ));
     }
     println!(
-        "{} PEM private key block(s) in this harness, every one a sensor control under {} bytes; .gitleaks.toml and .github/secret_scanning.yml exempt them from pattern matching and gantry scan-keys {dest_dir} is what checks them",
+        "{} PEM private key block(s) in this harness, every one a sensor control under {} bytes; .gitleaks.toml and .github/secret_scanning.yml exempt them from pattern matching and trunnion scan-keys {dest_dir} is what checks them",
         keys.fixtures.len(),
-        gantry::scan::SMALLEST_REAL_KEY
+        trunnion::scan::SMALLEST_REAL_KEY
     );
 
     let key_id = generate_actor_key(dest_dir, &policy_dest, &registry_dest, &seed_dest)?;
@@ -1223,7 +1223,7 @@ fn generate_actor_key(
         )
     })?;
     let verifying = ed25519_dalek::SigningKey::from_bytes(&seed).verifying_key();
-    let key_id = gantry::skills::key_id_for(&verifying);
+    let key_id = trunnion::skills::key_id_for(&verifying);
 
     let text = fs::read_to_string(policy_dest).map_err(|e| {
         Fault::new(
@@ -1254,7 +1254,7 @@ fn generate_actor_key(
         json!({
             "declared": "ed25519",
             "key_id": key_id,
-            "seed_env": "GANTRY_ACTOR_SEED",
+            "seed_env": "TRUNNION_ACTOR_SEED",
             "seed_file": HARNESS_SEED_FILE,
             "observed_by": "event.attestation.key_id",
         }),
@@ -1265,10 +1265,10 @@ fn generate_actor_key(
     // and this refuses before the seed exists.
     Policy::load(policy_dest)?;
 
-    let registry = gantry::skills::KeyRegistry {
-        keys: vec![gantry::skills::RegisteredKey {
+    let registry = trunnion::skills::KeyRegistry {
+        keys: vec![trunnion::skills::RegisteredKey {
             owner: format!(
-                "agent:gantry-harness at {dest_dir} (key generated by gantry template init; the seed is held at config/{HARNESS_SEED_FILE} in that harness and is not published)"
+                "agent:trunnion-harness at {dest_dir} (key generated by trunnion template init; the seed is held at config/{HARNESS_SEED_FILE} in that harness and is not published)"
             ),
             public_key_hex: hex::encode(verifying.as_bytes()),
             seed_published: false,
@@ -1353,7 +1353,7 @@ fn skill_delegate(parent_caps: &str, package_dir: &str) -> Result<i32, Fault> {
         .filter(|s| !s.is_empty())
         .map(String::from)
         .collect();
-    match gantry::skills::delegate(&parent, &manifest.scope.capabilities) {
+    match trunnion::skills::delegate(&parent, &manifest.scope.capabilities) {
         Ok(granted) => {
             println!(
                 "delegation to skill {}: parent holds {:?}, skill scope {:?}, granted {:?}",
@@ -1385,7 +1385,7 @@ fn append_system_event(
         run_id: format!("run-{kind}"),
         parent_id: None,
         seq: 0,
-        ts: gantry::gateway::rfc3339_now(),
+        ts: trunnion::gateway::rfc3339_now(),
         kind: kind.to_string(),
         actor: json!({"type": "system", "id": actor_id, "identity_source": "local", "rung": null}),
         authority,
@@ -1448,7 +1448,7 @@ fn graph_query(ledger_dir: &str, graph_path: &str, symbol: &str) -> Result<i32, 
 fn graph_compare(graph_path: &str, symbol: &str, files: &[&str]) -> Result<i32, Fault> {
     let paths: Vec<std::path::PathBuf> = files.iter().map(std::path::PathBuf::from).collect();
     let graph = Graph::load(Path::new(graph_path))?;
-    let flat = gantry::graph::flat_query(&paths, symbol)?;
+    let flat = trunnion::graph::flat_query(&paths, symbol)?;
     let graph_fast = graph.query(symbol, false)?;
     let graph_expired = graph.query(symbol, true)?;
 
@@ -1512,7 +1512,7 @@ fn orchestrate_step(
         instructions: Path::new("instructions/pack.md").into(),
         settings: Some(settings_path).filter(|p| p.exists()).map(Into::into),
         diverged: settings_divergence(settings_path),
-        permission_mode: gantry::gateway::observed_permission_mode(),
+        permission_mode: trunnion::gateway::observed_permission_mode(),
     };
     let mut orch = Orchestrator::open(ledger, policy, &format!("orchestrate:{capability}"), &pin)?;
     let outcome = orch.step(capability, &sensor, Path::new(artifact), approver)?;
@@ -1551,7 +1551,7 @@ fn approve(
     verdict: &str,
 ) -> Result<i32, Fault> {
     let policy = Policy::load(Path::new("config/policy.json"))?;
-    let budget = gantry::trust::TrustBudget::from_policy(&policy);
+    let budget = trunnion::trust::TrustBudget::from_policy(&policy);
     if !budget.approver_ok(approver) {
         return Err(Fault::new(
             format!("{approver} is not permitted to approve under this policy's trust budget"),
@@ -1631,7 +1631,7 @@ fn write_grant(
         instructions: Path::new("instructions/pack.md").into(),
         settings: Some(settings_path).filter(|p| p.exists()).map(Into::into),
         diverged: settings_divergence(settings_path),
-        permission_mode: gantry::gateway::observed_permission_mode(),
+        permission_mode: trunnion::gateway::observed_permission_mode(),
     };
     let policy_version = policy.policy_version.clone().ok_or_else(|| {
         Fault::new(
@@ -1646,12 +1646,12 @@ fn write_grant(
         "identity_source": "local",
         "rung": null,
     });
-    let signer = gantry::runlog::ActorSigner::declared(
+    let signer = trunnion::runlog::ActorSigner::declared(
         &policy.profile,
         &policy.profile_requirements,
-        gantry::gateway::policy_dir(&pin.policy),
+        trunnion::gateway::policy_dir(&pin.policy),
     )?;
-    let mut core = gantry::runlog::RunCore::open(ledger, actor, authority).signed_by(signer);
+    let mut core = trunnion::runlog::RunCore::open(ledger, actor, authority).signed_by(signer);
     let grant_id = format!("{}-{}", core.run_id(), core.event_count());
     core.append(
         "approval",
@@ -1693,8 +1693,8 @@ fn trust_history(ledger_dir: &str, capability: &str) -> Result<i32, Fault> {
                 "name a declared capability",
             )
         })?;
-    let lines = gantry::trust::narrate(&events, capability);
-    let state = gantry::trust::TrustState::replay(&events, capability, start);
+    let lines = trunnion::trust::narrate(&events, capability);
+    let state = trunnion::trust::TrustState::replay(&events, capability, start);
     println!(
         "rung history for {capability} (started at {}):",
         start.schema_name()
@@ -1740,7 +1740,7 @@ fn sensor_gate(
         instructions: Path::new("instructions/pack.md").into(),
         settings: Some(settings_path).filter(|p| p.exists()).map(Into::into),
         diverged: settings_divergence(settings_path),
-        permission_mode: gantry::gateway::observed_permission_mode(),
+        permission_mode: trunnion::gateway::observed_permission_mode(),
     };
     let mut run = SensorRun::open(
         ledger,
@@ -1769,14 +1769,14 @@ fn sensor_gate(
     Ok(exit)
 }
 
-fn verdict_exit(v: &gantry::sensor::SensorVerdict) -> i32 {
+fn verdict_exit(v: &trunnion::sensor::SensorVerdict) -> i32 {
     match v.verdict {
         Verdict::Pass => 0,
         _ => 1,
     }
 }
 
-fn report_verdict(label: &str, v: &gantry::sensor::SensorVerdict) {
+fn report_verdict(label: &str, v: &trunnion::sensor::SensorVerdict) {
     let verdict = serde_json::to_value(v)
         .ok()
         .and_then(|j| j["verdict"].as_str().map(String::from))
@@ -1817,7 +1817,7 @@ fn repair_artifact(
     );
     // A throwaway gateway run so the repair call is itself on a ledger; the
     // repair's evidence lives beside the sensor run rather than inside it.
-    let dir = std::env::temp_dir().join(format!("gantry-repair-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("trunnion-repair-{}", std::process::id()));
     let ledger = Ledger::init(&dir)?;
     let mut grun = GatewayRun::open(
         ledger,
@@ -1827,7 +1827,7 @@ fn repair_artifact(
             instructions: Path::new("instructions/pack.md").into(),
             settings: None,
             diverged: vec![],
-            permission_mode: gantry::gateway::observed_permission_mode(),
+            permission_mode: trunnion::gateway::observed_permission_mode(),
         },
     )?;
     let answer = grun.call(provider, &[msg("system", system), msg("user", &user)])?;
@@ -1846,7 +1846,7 @@ fn repair_artifact(
 
 /// Opens (or initialises) the ledger and a broker run against the tracked
 /// machine policy, with builtins registered and authority pinned the same
-/// way `gantry run` pins it.
+/// way `trunnion run` pins it.
 fn open_broker(ledger_dir: &str, workload: &str) -> Result<BrokerRun, Fault> {
     open_broker_with(ledger_dir, workload, "instructions/pack.md")
 }
@@ -1869,7 +1869,7 @@ fn open_broker_with(
         instructions: Path::new(instructions).into(),
         settings: Some(settings_path).filter(|p| p.exists()).map(Into::into),
         diverged: settings_divergence(settings_path),
-        permission_mode: gantry::gateway::observed_permission_mode(),
+        permission_mode: trunnion::gateway::observed_permission_mode(),
     };
     let mut run = BrokerRun::open(ledger, policy, workload, &pin)?;
     run.register_builtins()?;
@@ -1919,7 +1919,7 @@ fn project_add(target: &str, flags: &[&str]) -> Result<i32, Fault> {
             "--risk" => risk = Risk::parse(value()?)?,
             other => {
                 return Err(usage_fault(format!(
-                    "{other} is not an option of gantry project add"
+                    "{other} is not an option of trunnion project add"
                 )))
             }
         }
@@ -1943,7 +1943,7 @@ fn project_list() -> Result<i32, Fault> {
     let ws = Workspace::load(&home)?;
     if ws.projects.is_empty() {
         println!(
-            "no projects registered in {}. Add one with gantry project add <path-or-url>",
+            "no projects registered in {}. Add one with trunnion project add <path-or-url>",
             workspace::registry_path(&home).display()
         );
         return Ok(0);
@@ -1974,7 +1974,7 @@ fn project_remove(id: &str) -> Result<i32, Fault> {
 }
 
 /// Scan one registered project, or every one of them. This is the same
-/// `scan()` and the same report `gantry scan <dir>` prints, with a heading
+/// `scan()` and the same report `trunnion scan <dir>` prints, with a heading
 /// naming the project: a workspace-specific report format would be a second
 /// thing to keep true and a second thing to disagree with the first.
 ///
@@ -1990,13 +1990,13 @@ fn project_scan(id: Option<&str>) -> Result<i32, Fault> {
             .cloned()
             .ok_or_else(|| Fault::new(
                 format!("the workspace has no project called {id}"),
-                "run gantry project list to see the registered ids, or gantry project add <path-or-url> to register this one",
+                "run trunnion project list to see the registered ids, or trunnion project add <path-or-url> to register this one",
             ))?],
         None => ws.projects.clone(),
     };
     if targets.is_empty() {
         println!(
-            "no projects registered in {}. Add one with gantry project add <path-or-url>",
+            "no projects registered in {}. Add one with trunnion project add <path-or-url>",
             workspace::registry_path(&home).display()
         );
         return Ok(0);
@@ -2010,10 +2010,10 @@ fn project_scan(id: Option<&str>) -> Result<i32, Fault> {
             project.risk.as_str(),
             workspace::source_text(&project.source)
         );
-        match gantry::scan::RepoRead::open(&dir) {
+        match trunnion::scan::RepoRead::open(&dir) {
             Ok(repo) => {
-                print!("{}", gantry::scan::scan(&repo).text());
-                ws.mark_scanned(&project.id, &gantry::gateway::rfc3339_now());
+                print!("{}", trunnion::scan::scan(&repo).text());
+                ws.mark_scanned(&project.id, &trunnion::gateway::rfc3339_now());
             }
             Err(fault) => {
                 failed += 1;
@@ -2025,7 +2025,7 @@ fn project_scan(id: Option<&str>) -> Result<i32, Fault> {
                     "{}",
                     Fault::new(
                         format!("cannot scan project {}: {}", project.id, fault.cause),
-                        format!("the registry points {} at {}; re-add it with gantry project add <path-or-url> --id {}, or drop it with gantry project remove {}", project.id, dir.display(), project.id, project.id),
+                        format!("the registry points {} at {}; re-add it with trunnion project add <path-or-url> --id {}, or drop it with trunnion project remove {}", project.id, dir.display(), project.id, project.id),
                     )
                 );
             }
@@ -2064,7 +2064,7 @@ fn project_remediate(id: &str, flags: &[&str]) -> Result<i32, Fault> {
             }
             other => {
                 return Err(usage_fault(format!(
-                    "{other} is not an option of gantry project remediate"
+                    "{other} is not an option of trunnion project remediate"
                 )))
             }
         }
@@ -2076,18 +2076,18 @@ fn project_remediate(id: &str, flags: &[&str]) -> Result<i32, Fault> {
     let project = ws.find(id).cloned().ok_or_else(|| {
         Fault::new(
             format!("the workspace has no project called {id}"),
-            "run gantry project list to see the registered ids",
+            "run trunnion project list to see the registered ids",
         )
     })?;
     let dir = ws.checkout(&home, &project);
-    let repo = gantry::scan::RepoRead::open(&dir)?;
-    let mut report = gantry::scan::scan(&repo);
+    let repo = trunnion::scan::RepoRead::open(&dir)?;
+    let mut report = trunnion::scan::scan(&repo);
     if let Some(n) = only {
         report.findings.retain(|f| f.primitive == n);
     }
     print!(
         "{}",
-        gantry::remediate::document(&report, project.risk, &project.id)?
+        trunnion::remediate::document(&report, project.risk, &project.id)?
     );
     Ok(0)
 }
@@ -2123,7 +2123,7 @@ fn anchor_event() -> NewEvent {
         run_id,
         parent_id: None,
         seq: 0,
-        ts: gantry::gateway::rfc3339_now(),
+        ts: trunnion::gateway::rfc3339_now(),
         kind: "ledger.anchor".into(),
         actor: json!({
             "type": "system",
@@ -2159,7 +2159,7 @@ fn read_new_event() -> Result<NewEvent, Fault> {
     std::io::stdin().read_to_string(&mut text).map_err(|e| {
         Fault::new(
             format!("cannot read the event from stdin: {e}"),
-            "pipe one NewEvent JSON object in, for example: gantry ledger append DIR < event.json",
+            "pipe one NewEvent JSON object in, for example: trunnion ledger append DIR < event.json",
         )
     })?;
     serde_json::from_str(&text).map_err(|e| {

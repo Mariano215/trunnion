@@ -4,13 +4,13 @@ There is no live link between the design session and your working copy. The
 sync is manual and takes a minute:
 
 ```
-git clone https://github.com/Mariano215/gantry.git
-cd gantry
-# unzip the handoff package into ./handoff_gantry
-cp handoff_gantry/seed/CLAUDE.md ./CLAUDE.md
-mkdir -p .claude/commands && cp handoff_gantry/seed/settings.json .claude/settings.json
-cp handoff_gantry/seed/commands/proof.md .claude/commands/proof.md
-mkdir -p docs && cp handoff_gantry/docs/*.md docs/
+git clone https://github.com/Mariano215/trunnion.git
+cd trunnion
+# unzip the handoff package into ./handoff_trunnion
+cp handoff_trunnion/seed/CLAUDE.md ./CLAUDE.md
+mkdir -p .claude/commands && cp handoff_trunnion/seed/settings.json .claude/settings.json
+cp handoff_trunnion/seed/commands/proof.md .claude/commands/proof.md
+mkdir -p docs && cp handoff_trunnion/docs/*.md docs/
 claude
 ```
 
@@ -23,7 +23,7 @@ docs/CLAUDE-CODE-INTEGRATION.md. docs/PRIMITIVES.md and
 docs/HARNESS-ENGINEERING.md are canonical reference — read them, do not edit
 them.
 
-This repo is empty. We are building Gantry: an LLM-agnostic control plane that
+This repo is empty. We are building Trunnion: an LLM-agnostic control plane that
 implements the twelve harness primitives as running services, ships as a
 container, and scores its own installation from real telemetry.
 

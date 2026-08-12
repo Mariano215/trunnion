@@ -26,7 +26,7 @@ parallel without meeting in the middle.
 - **Unknown `/api/*` paths are 404 with a Fault body.** Unknown non-API paths
   serve the console shell, so the front end owns its own routing.
 
-- **The workspace routes answer without a ledger.** `gantry console` with no
+- **The workspace routes answer without a ledger.** `trunnion console` with no
   ledger directory serves `/api/projects` and `/api/projects/:id/*` and
   answers 404 with a Fault on every ledger route, because a static scan reads
   a tree and a tree needs no log. The front end reads that 404 as "there is no
@@ -46,10 +46,10 @@ current by whoever has it open.
   "ceiling": 3,
   "projects": [
     {
-      "id": "gantry",
+      "id": "trunnion",
       "risk": "internal",
-      "source": "/Volumes/T7/Projects/gantry",
-      "path": "/Volumes/T7/Projects/gantry",
+      "source": "/Volumes/T7/Projects/trunnion",
+      "path": "/Volumes/T7/Projects/trunnion",
       "last_scan": null,
       "ledger": null,
       "readable": true,
@@ -83,16 +83,16 @@ brief and `gaps` is the ranked list of
 `{primitive, key, name, current, target, gap}`. The order is the contracts'
 remediation rank, computed here. The console renders it and sorts nothing: a
 front end that ordered the work would be prescribing a level, which is the one
-thing gantry does not do.
+thing trunnion does not do.
 
 An unknown id is 404 with a Fault naming `/api/projects` and
-`gantry project add`. An id carrying a slash is not an id and is refused
+`trunnion project add`. An id carrying a slash is not an id and is refused
 before it reaches the registry.
 
 ## `GET /api/score`
 
 The `ScoreSnapshot` the current scorecard already renders, serialised
-directly. Field names are `serde` defaults on `gantry::scorer::ScoreSnapshot`.
+directly. Field names are `serde` defaults on `trunnion::scorer::ScoreSnapshot`.
 
 ```json
 {
@@ -117,7 +117,7 @@ renders `null` as N/A and never as zero.
 
 ## `GET /api/head`
 
-The latest signed tree head, `gantry::ledger::SignedHead`.
+The latest signed tree head, `trunnion::ledger::SignedHead`.
 
 ```json
 {
@@ -319,7 +319,7 @@ request, like everything else here.
       "decision_event": "run-1785936529805-4",
       "state": "waiting",
       "releases_next_call": false,
-      "approve_command": "gantry approve /path/to/ledger run-1785936529805-req-3 <approver>",
+      "approve_command": "trunnion approve /path/to/ledger run-1785936529805-req-3 <approver>",
       "grants": [
         {
           "grant_id": "run-1785936547330-0",
@@ -402,7 +402,7 @@ calls it on demand, not on a poll.
     {"run_id": "run-...", "after": 7, "before": 11, "missing": 3}
   ],
   "head": { "...": "the SignedHead above" },
-  "reproduce": "gantry ledger verify /path/to/ledger"
+  "reproduce": "trunnion ledger verify /path/to/ledger"
 }
 ```
 
@@ -437,8 +437,8 @@ that checks the server.
   describing a page nobody is looking at.
 - Rank, order or target the remediation queue itself. The order and the level
   come from `/api/projects/:id/remediate`, which quotes the contracts; a
-  ranking computed in the browser would be gantry prescribing a level.
-- Read a missing ledger as a broken one. `gantry console` with no ledger
+  ranking computed in the browser would be trunnion prescribing a level.
+- Read a missing ledger as a broken one. `trunnion console` with no ledger
   directory answers 404 on the ledger routes, and a 404 there is a console
   without a log, not a log that failed to verify.
 - Offer to approve, promote or append. `/api/approvals` names what is waiting

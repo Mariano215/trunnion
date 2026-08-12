@@ -85,16 +85,16 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          name="gantry-$VERSION-$TARGET"
+          name="trunnion-$VERSION-$TARGET"
           mkdir -p "dist/$name"
-          cp "target/$TARGET/release/gantry" "dist/$name/"
+          cp "target/$TARGET/release/trunnion" "dist/$name/"
           cp LICENSE README.md "dist/$name/"
           cp -R templates "dist/$name/templates"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: gantry-${{ matrix.target }}
+          name: trunnion-${{ matrix.target }}
           path: dist/*.tar.gz
           if-no-files-found: error
 
@@ -115,7 +115,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       # A registry repository name must be lowercase and a GitHub owner need
-      # not be, so ghcr.io/Mariano215/gantry is not a name buildx will accept.
+      # not be, so ghcr.io/Mariano215/trunnion is not a name buildx will accept.
       # github.repository is used verbatim by almost every published example
       # of this workflow: it works for every owner whose login happens to be
       # lowercase and fails for the rest at the push, after the gate and both
@@ -166,7 +166,7 @@ jobs:
       # v0.1.0 attempt: both binaries arrived and the build record did not.
       - uses: actions/download-artifact@v4
         with:
-          pattern: gantry-*
+          pattern: trunnion-*
           path: artifacts
           merge-multiple: true
 
@@ -198,7 +198,7 @@ jobs:
             echo "docker pull ghcr.io/${GITHUB_REPOSITORY_LC}:${VERSION}"
             echo '```'
             echo
-            echo "Isolation inside a plain unprivileged \`docker run\` is Landlock ABI v4, no flags and no added capabilities. On a kernel that does not provide it, \`gantry\` records the backend as \`none\` and the isolation claim is honestly unmet rather than quietly assumed."
+            echo "Isolation inside a plain unprivileged \`docker run\` is Landlock ABI v4, no flags and no added capabilities. On a kernel that does not provide it, \`trunnion\` records the backend as \`none\` and the isolation claim is honestly unmet rather than quietly assumed."
             echo
             echo "## Verifying a download"
             echo

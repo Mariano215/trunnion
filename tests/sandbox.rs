@@ -4,16 +4,16 @@
 //! prompt-injected file) live in docs/proof/04-run.sh, not here, so the
 //! suite stays offline.
 
-use gantry::broker::BrokerRun;
-use gantry::gateway::Pinning;
-use gantry::ledger::{self, Ledger};
-use gantry::policy::Policy;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
+use trunnion::broker::BrokerRun;
+use trunnion::gateway::Pinning;
+use trunnion::ledger::{self, Ledger};
+use trunnion::policy::Policy;
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-sbx-it-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-sbx-it-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -78,12 +78,12 @@ fn last_subject(led: &Path, kind: &str) -> Value {
 /// the parent environment; inside the sandbox the broker runs, it is gone.
 #[test]
 fn env_exfil_sees_no_secret() {
-    std::env::set_var("GANTRY_IT_CANARY", "top-secret-value");
+    std::env::set_var("TRUNNION_IT_CANARY", "top-secret-value");
     let dir = workdir("exfil");
     let (mut run, led) = open_run(&dir, "exfil");
     let out = run.call("Bash", "env").unwrap();
     run.seal("complete").unwrap();
-    std::env::remove_var("GANTRY_IT_CANARY");
+    std::env::remove_var("TRUNNION_IT_CANARY");
     assert!(
         !out.content.contains("top-secret-value"),
         "the parent's secret reached the sandboxed process: {}",
@@ -184,7 +184,7 @@ fn tool_request_records_the_active_backend() {
     // on the platform the backend was added for, and hard-coding either one
     // would assert the platform rather than the property, which is that the
     // record and the running system agree.
-    let backend = gantry::sandbox::active_backend();
+    let backend = trunnion::sandbox::active_backend();
     assert_ne!(backend, "none", "this host enforces nothing");
     let req = last_subject(&led, "tool.request");
     assert_eq!(req["sandbox"], backend);

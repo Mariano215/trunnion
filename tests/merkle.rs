@@ -1,5 +1,5 @@
-use gantry::merkle::*;
 use sha2::{Digest, Sha256};
+use trunnion::merkle::*;
 
 fn leaves(n: usize) -> Vec<Hash> {
     (0..n)

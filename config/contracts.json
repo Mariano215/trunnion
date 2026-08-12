@@ -1,6 +1,6 @@
 {
-  "_source": "harness-kit contracts 0.2.0, vendored from contracts.yaml by gantry's dev/vendor-contracts.py",
-  "_note": "Quoted by the remediation brief so a requirement reaches the reader in the words that defined it. Read by nothing that produces a score: harness-kit refuses to infer a level and gantry refuses to prescribe, and tests/invariants.rs is what keeps that true.",
+  "_source": "harness-kit contracts 0.2.0, vendored from contracts.yaml by trunnion's dev/vendor-contracts.py",
+  "_note": "Quoted by the remediation brief so a requirement reaches the reader in the words that defined it. Read by nothing that produces a score: harness-kit refuses to infer a level and trunnion refuses to prescribe, and tests/invariants.rs is what keeps that true.",
   "contracts_version": "0.2.0",
   "spec_version": "0.2.0-draft",
   "contracts": [

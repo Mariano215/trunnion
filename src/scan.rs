@@ -1,4 +1,4 @@
-//! `gantry scan`: a read-only static read of a repository's harness surface.
+//! `trunnion scan`: a read-only static read of a repository's harness surface.
 //!
 //! The scan reads files. It never runs the repository, never reaches the
 //! network, and never writes to the tree it is pointed at: every filesystem
@@ -24,7 +24,7 @@
 //! carried only by a guide caps at 3, and anchor 4 in `docs/PRIMITIVES.md`
 //! requires enforcement by the system rather than by discipline.
 //!
-//! `gantry score` is the other number. It reads a ledger, every predicate is a
+//! `trunnion score` is the other number. It reads a ledger, every predicate is a
 //! statement about events that happened, and it is the only one of the two
 //! that can award 4. The two are not averaged and are not expected to agree:
 //! the static scan under-reads a running system (a recorder is runtime state,
@@ -192,7 +192,7 @@ const CHECK_FILES: &[&str] = &[
 const RULE_FILES: &[&str] = &["CLAUDE.md", "AGENTS.md", ".cursorrules"];
 
 /// The twelve probes, in `docs/PRIMITIVES.md` order. Every path here is a
-/// convention some repository actually uses, never a gantry-specific one:
+/// convention some repository actually uses, never a trunnion-specific one:
 /// pointing the scan at this repository and having it recognise this
 /// repository's private layout would make the number a compliment rather than
 /// a measurement.
@@ -724,7 +724,7 @@ impl ScanReport {
     pub fn text(&self) -> String {
         let mut s = String::new();
         s.push_str(&format!(
-            "gantry scan {}\nread-only static scan of what is on disk. Twelve primitives, a path behind every number.\n\n",
+            "trunnion scan {}\nread-only static scan of what is on disk. Twelve primitives, a path behind every number.\n\n",
             self.root
         ));
         for f in &self.findings {
@@ -739,7 +739,7 @@ impl ScanReport {
             self.findings.len()
         ));
         s.push_str(&format!(
-            "\nceiling: a static read resolves three states, absent (0), an artifact nothing enforces (2), and an artifact a check file names ({STATIC_CEILING}). It awards no 1, because habits leave no file; no 4 or 5, because a file says a check is wired and only a run says it fired; and no N/A, because a tree does not show which primitives the workload exercises. For 4 and above, run gantry score over a ledger: it reads events, not files. The two numbers are not averaged, and where they disagree the telemetry one measured something running.\n"
+            "\nceiling: a static read resolves three states, absent (0), an artifact nothing enforces (2), and an artifact a check file names ({STATIC_CEILING}). It awards no 1, because habits leave no file; no 4 or 5, because a file says a check is wired and only a run says it fired; and no N/A, because a tree does not show which primitives the workload exercises. For 4 and above, run trunnion score over a ledger: it reads events, not files. The two numbers are not averaged, and where they disagree the telemetry one measured something running.\n"
         ));
         if self.checks_read.is_empty() {
             s.push_str(&format!(
@@ -783,7 +783,7 @@ mod tests {
         // A prose phrase in backticks is not a check id, which is what keeps
         // the paragraph defining the convention from reading as a work item
         // that names a check.
-        assert_eq!(check_id("and `gantry scan` reports it"), None);
+        assert_eq!(check_id("and `trunnion scan` reports it"), None);
         assert_eq!(check_id("no backticks here"), None);
         // The shape a rule file actually writes: the marker is itself
         // backticked, so the fragment after it opens with a stray closing

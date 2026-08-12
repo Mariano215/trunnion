@@ -757,7 +757,7 @@ pub fn verify(dir: &Path) -> Result<VerifyReport, Fault> {
 
 /// ci/secret-in-prompt: grep every stored byte of a ledger for known secret
 /// values. `secrets` pairs a handle name with its value; the caller reads
-/// them from the same GANTRY_HANDLE_* environment the credential broker
+/// them from the same TRUNNION_HANDLE_* environment the credential broker
 /// substitutes from, so the scanner and the broker agree on what a secret
 /// is. A hit names the handle and the file, never the value.
 pub fn scan_for_secrets(dir: &Path, secrets: &[(String, String)]) -> Result<Vec<Fault>, Fault> {

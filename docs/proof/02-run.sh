@@ -4,7 +4,7 @@
 # reachable over Tailscale, local ollama serving qwen3:0.6b on 127.0.0.1.
 # Run from the repository root.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 SBX='(version 1)(allow default)(deny network*)(allow network* (remote ip "localhost:11434"))'
 WORK=$(mktemp -d /tmp/gantry-proof02.XXXXXX)
 echo "workdir: $WORK"

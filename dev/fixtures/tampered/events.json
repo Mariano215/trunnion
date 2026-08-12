@@ -376,7 +376,7 @@
         "schema_version": "1",
         "sandbox": "seatbelt",
         "credential_handles": [
-          "GANTRY_HANDLE_NPM"
+          "TRUNNION_HANDLE_NPM"
         ]
       },
       "_attestation_state": "absent"
@@ -562,7 +562,7 @@
         "value": "5vPqk2mS0Jc8lM3xR7yTfA1wQeZbN4hUuXo9vC2rD6kLpG8sYtBjHnW5aEiFdKm3"
       },
       "_subject": {
-        "graph": "gantry",
+        "graph": "trunnion",
         "symbol": "BrokerRun::call",
         "hits": 4,
         "bytes_read": 18422,
