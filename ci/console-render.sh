@@ -151,6 +151,15 @@ RUN=$(jq -rs '[.[] | select(.kind=="run.open")] | last | .run_id' $L/events.json
 # instead of looking whole.
 RUN_EVENTS=$(jq -rs --arg r "$RUN" '[.[] | select(.run_id==$r)] | length' $L/events.jsonl)
 RULE=$(decision_rule deny)
+# Slice 24, the operations aggregate. Read from the ledger here so the tiles
+# are asserted against numbers this fixture actually produced: a hardcoded
+# expectation would keep passing after the aggregate stopped counting.
+OPS_RUNS=$(jq -rs '[.[] | select(.kind=="run.open")] | length' $L/events.jsonl)
+OPS_DENIALS=$(payloads policy.decision | jq -rs '[.[] | select(.verdict=="deny")] | length')
+# The fixture's events are dated when this script ran, so the default 24h
+# window holds them all. If that stops being true the tiles read 0 and these
+# assertions fail, which is the right way round.
+OPS_SAMPLES=$(payloads tool.result | jq -rs '[.[] | select(.duration_ms != null)] | length')
 HOLD_RULE=$(decision_rule hold)
 REQ_WAITING=$(request_field "git push origin main" request_id)
 CALL_WAITING=$(request_field "git push origin main" call_hash)
@@ -371,7 +380,7 @@ refute() {
 }
 
 typeset -A ROUTE ORIGIN_OF
-VIEWS=(overview ledger run trace policy trust inbox verify)
+VIEWS=(overview operations ledger run trace policy trust inbox verify)
 for view in $VIEWS; do ROUTE[$view]=$view; ORIGIN_OF[$view]=$ORIGIN; done
 # The four routes that reach what a plain view does not: a run's own waterfall,
 # a ledger row opened by its event id, a hold opened by its call hash, and the
@@ -413,6 +422,24 @@ expect overview "$ROOT" "the signed tree head panel prints the root hash /api/he
 expect overview "$KEY" "the head chip and the tree head panel name the signing key"
 expect overview "class=\"stat-v\">$SIZE<" "the ledger size stat carries the head size, as a number and not a dash"
 expect overview "policy.decision" "the kind breakdown counts events off /api/events"
+
+# Operations: /api/operations, the aggregate that exists because a browser
+# counting over the capped events page would describe the page while the tiles
+# read as a statement about the log.
+expect operations "class=\"stat-v\">$OPS_RUNS<" "the agent runs tile carries the run.open count for the window, as a number and not a dash"
+expect operations "class=\"stat-v\">$SIZE<" "the evidence records tile carries the head size /api/head returned"
+expect operations "class=\"stat-v warn-text\">$OPS_DENIALS<" "the denials tile counts policy.decision where the verdict is deny, and a non-zero count is marked rather than sitting in the same weight as the rest"
+# The absent branch, which is the one that matters on this product. This
+# fixture exercises the broker and the approval path but never the sensor bus,
+# so that node must say it has no telemetry rather than being drawn live at
+# zero. A diagram that renders "never instrumented" and "ran and found none"
+# identically is the failure this whole view is trying not to be.
+expect operations ">no telemetry<" "a topology node whose kinds the log never carried renders as absent, never as a live 0"
+# And the thin-sample branch: durations exist but not enough of them for a
+# percentile, and saying "no telemetry" over real measurements would be the
+# same lie in the other direction.
+expect operations "$OPS_SAMPLES samples, 20 needed for a percentile" "a percentile under the floor names how many samples there were"
+expect operations "0 derived from the record" "the topology states that its edges are declared, so a reader cannot take an arrow for an observed handoff"
 
 # Ledger: /api/events with its inlined subject and derived attestation state.
 expect ledger "$RUN" "each row links to the run its event carries"

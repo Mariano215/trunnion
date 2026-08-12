@@ -80,6 +80,10 @@ export const api = {
   policy: () => get('/api/policy'),
   trust: () => get('/api/trust'),
   approvals: () => get('/api/approvals'),
+  // The aggregate the operations view reads. Server side on purpose: a
+  // percentile or a denial count taken in the browser would be computed over
+  // the capped events page and printed as a statement about the whole log.
+  operations: (params) => get(`/api/operations${qs(params)}`),
   verify: () => get('/api/verify'),
 };
 

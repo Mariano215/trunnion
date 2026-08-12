@@ -356,6 +356,20 @@ main { display: block; }
 .grid-2 { display: grid; gap: var(--gutter); grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: var(--gutter); }
 .grid-3 { display: grid; gap: var(--gutter); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: var(--gutter); }
 
+/* ---------- operations ---------- */
+
+.grid-5 { display: grid; gap: var(--gutter); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: var(--gutter); }
+
+.topo { width: 100%; height: auto; display: block; }
+.topo-edge { stroke: var(--line); stroke-width: 1; }
+.topo-node rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; }
+.topo-name { fill: var(--fg); font-size: 12px; font-family: var(--mono); }
+.topo-count { fill: var(--fg-dim); font-size: 11px; font-family: var(--mono); }
+/* A node whose producer has never written an event is drawn as absent rather
+   than as a live node reading zero. */
+.topo-absent rect { stroke-dasharray: 3 3; fill: none; }
+.topo-absent .topo-name, .topo-absent .topo-count { fill: var(--fg-faint); }
+
 /* ---------- project index ---------- */
 
 .index { display: flex; gap: 8px; flex-wrap: wrap; padding: 22px 0 26px; }

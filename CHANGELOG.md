@@ -9,6 +9,23 @@ the diff to find out whether it mattered.
 
 ## [Unreleased]
 
+### Added
+
+- **An operations view: the whole harness on one screen.** Nine views each
+  answered one question and none answered "is this healthy right now". The new
+  tenth view carries counts for the window, tool-call latency, a live event
+  tail, the twelve primitives and a control topology, at `#/operations` on any
+  `trunnion console`. It surfaces two fields that have been recorded since
+  slices 04 and 10 and read by nothing: `tool.result.duration_ms` and
+  `model.call.latency_ms`. No score moves, because a view enforces nothing.
+- **`GET /api/operations`**, the aggregate behind it, computed over the whole
+  ledger rather than in the browser: `/api/events` caps at 1000 rows, so a
+  page-derived count would describe the page while the screen read as a
+  statement about the log. A count is null when the ledger has never carried
+  that kind and a number when it has, so "never instrumented" and "ran and
+  found none" cannot render alike, and a percentile under a twenty-sample floor
+  is null with its sample count beside it.
+
 ### Changed
 
 - **Renamed from gantry to trunnion.** The old name collided with an

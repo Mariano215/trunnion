@@ -4,7 +4,7 @@
 import { api, state, ledgerBroken } from '/api.js';
 import { trace } from '/trace.js';
 import {
-  el, clear, append, mono, panel, stat, kv, table, td, jsonPretty, commandBox, errPanel, loading,
+  el, svgEl, clear, append, mono, panel, stat, kv, table, td, jsonPretty, commandBox, errPanel, loading,
   shortHash, shortId, tsShort, tsDate, durationMs, num, actorId,
   attMark, attRowClass, subjectSummary, volumeChart,
 } from '/ui.js';
@@ -1182,4 +1182,159 @@ export async function verify(host) {
   }
 }
 
-export const views = { workspace, overview, ledger, run, trace, policy, trust, inbox, verify };
+// ---------- operations ----------
+
+// The topology's layout. Every edge here is declared by this table and nothing
+// derives one from an event kind, which is the same rule trace.js holds through
+// PEER_FIELD. The difference is what the two pictures claim: the trace view
+// draws observed handoffs and prints how many it refused to infer, and this one
+// draws the architecture and says so on the panel, so a reader is never invited
+// to read a declared arrow as a recorded one. The nodes are the only live part:
+// their counts come from /api/operations, which counts real events.
+const TOPO_NODES = {
+  'gateway': { x: 40, y: 24 },
+  'policy gate': { x: 250, y: 24 },
+  'tool broker': { x: 460, y: 24 },
+  'human approval': { x: 250, y: 130 },
+  'sensor bus': { x: 460, y: 130 },
+  'trust budget': { x: 460, y: 200 },
+  'evidence ledger': { x: 690, y: 112 },
+};
+const TOPO_EDGES = [
+  ['gateway', 'policy gate'],
+  ['policy gate', 'tool broker'],
+  ['policy gate', 'human approval'],
+  ['tool broker', 'sensor bus'],
+  ['sensor bus', 'trust budget'],
+  ['tool broker', 'evidence ledger'],
+  ['human approval', 'evidence ledger'],
+  ['trust budget', 'evidence ledger'],
+  ['gateway', 'evidence ledger'],
+];
+const TOPO_W = 168;
+const TOPO_H = 46;
+
+function topology(nodes) {
+  const byName = new Map(nodes.map((n) => [n.node, n]));
+  const centre = (name) => {
+    const p = TOPO_NODES[name];
+    return { x: p.x + TOPO_W / 2, y: p.y + TOPO_H / 2 };
+  };
+  const edges = TOPO_EDGES.map(([a, b]) => {
+    const p = centre(a); const q = centre(b);
+    return svgEl('line', { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: 'topo-edge' });
+  });
+  const boxes = Object.entries(TOPO_NODES).map(([name, p]) => {
+    const n = byName.get(name) || {};
+    // Null is "this producer has never written one", which is not zero and
+    // must not render as a quiet 0 on a diagram people read as live.
+    const absent = n.events === null || n.events === undefined;
+    return svgEl('g', { class: `topo-node${absent ? ' topo-absent' : ''}` },
+      svgEl('rect', { x: p.x, y: p.y, width: TOPO_W, height: TOPO_H, rx: 3 }),
+      svgEl('text', { x: p.x + 10, y: p.y + 19, class: 'topo-name' }, name),
+      svgEl('text', { x: p.x + 10, y: p.y + 35, class: 'topo-count' },
+        absent ? 'no telemetry' : `${num(n.events)} events`));
+  });
+  return svgEl('svg', {
+    viewBox: `0 0 ${TOPO_W + 700} 260`, class: 'topo',
+    role: 'img',
+    'aria-label': 'Declared architecture with live event counts per node',
+  }, ...edges, ...boxes);
+}
+
+// A tile value that is null renders as absent, never as zero. num() already
+// draws the dash, and the note says which of the two states this is.
+//
+// The absent note is a parameter rather than a fixed string, because the
+// reasons differ and saying the wrong one is its own small lie: a count is null
+// when the producer never wrote that kind, and a percentile is null when the
+// samples exist but are too few to describe a distribution. Printing "no
+// telemetry" over four real measurements would be the second dressed as the
+// first.
+const tile = (key, v, note, absent, opts) =>
+  stat(key, num(v), v === null || v === undefined ? absent : note, opts);
+
+export async function operations(host) {
+  const body = el('div', { class: 'view' }, loading('the operations aggregate, the score and the event tail'));
+  clear(host).append(body);
+
+  const TAIL = 12;
+  const [ops, score, head, first] = await Promise.all([
+    api.operations({ window: '24h' }),
+    api.score(),
+    api.head(),
+    api.events({ limit: TAIL }),
+  ]);
+  state.head = head;
+
+  // /api/events pages the log in append order, so the first page is the
+  // oldest rows. A stream that calls those "latest" is describing a page
+  // nobody is looking at, so page to the end before saying so.
+  const total = first.total || 0;
+  const tail = total > TAIL
+    ? (await api.events({ limit: TAIL, offset: Math.max(0, total - TAIL) })).events || []
+    : (first.events || []);
+
+  const c = ops.counts || {};
+  const gate = ops.gate_latency || {};
+  const thin = gate.samples < gate.floor;
+
+  clear(body).append(
+    el('p', { class: 'lede' },
+      `Everything this harness did in the last 24 hours, from the log. `,
+      el('span', { class: 'dim' },
+        `${num(ops.scanned)} of ${num(ops.total_events)} events fall in the window.`)),
+
+    el('div', { class: 'grid-5' },
+      tile('agent runs · 24h', c.runs_opened && c.runs_opened.count,
+        'chain of custody on every one', 'no run.open on this ledger'),
+      tile('evidence records', head.size,
+        state.verify && state.verify.ok ? 'chain intact · verified' : 'chain state unread',
+        'this console has no head to read'),
+      tile('policy denials', c.denials && c.denials.count,
+        'blocked before execution', 'no policy.decision on this ledger',
+        { cls: (c.denials && c.denials.count) ? 'warn-text' : null }),
+      tile('human approvals', c.approvals && c.approvals.count,
+        'named authority on each', 'no approval on this ledger'),
+      // A percentile under the floor is not a number this view will print, and
+      // the note says how many samples there were rather than implying none.
+      tile('tool call p95', gate.p95,
+        `over ${num(gate.samples)} calls · max ${num(gate.max)}ms`,
+        gate.samples ? `${num(gate.samples)} samples, ${num(gate.floor)} needed for a percentile` : 'no tool.result carries a duration'),
+    ),
+
+    el('div', { class: 'grid-2' },
+      panel('Run stream', {
+        sub: total > TAIL ? `the last ${TAIL} of ${num(total)} events, newest first` : `all ${num(total)} events, newest first`,
+        flush: true,
+      },
+        table(
+          [{ label: 'time', width: '13ch' }, { label: 'kind', width: '17ch' }, { label: 'actor' }, { label: 'att', width: '12ch' }],
+          tail.slice().reverse().map((e) => el('tr', { class: attRowClass(e) },
+            td(mono(tsShort(e.ts))),
+            td(el('a', { href: `#/ledger/${encodeURIComponent(e.id)}`, class: 'mono' }, e.kind)),
+            td(el('span', { class: 'dim' }, actorId(e.actor))),
+            td(attMark(e)),
+          )),
+          { empty: 'this ledger carries no events', rowsAttr: false },
+        )),
+
+      panel('Control topology', {
+        sub: `${TOPO_EDGES.length} edges declared by layout · 0 derived from the record`,
+      },
+        topology(ops.topology || []),
+        el('p', { class: 'faint' },
+          'The boxes and arrows are this system’s architecture, not a drawing of observed handoffs. ',
+          'An arrow here asserts nothing about the log; only the per-node counts are read from it. ',
+          el('a', { href: '#/trace' }, 'The trace view'),
+          ' is where an edge means a producer recorded a peer.'))),
+
+    panel('The twelve primitives', { sub: `scored from telemetry · rules ${score.rules_version}`, flush: true },
+      railChart(
+        (score.scores || []).map((s) => ({ primitive: s.primitive, name: s.name, score: s.score === null || s.score === undefined ? 0 : s.score })),
+        score.overall === null || score.overall === undefined ? 0 : score.overall,
+        3)),
+  );
+}
+
+export const views = { workspace, overview, operations, ledger, run, trace, policy, trust, inbox, verify };

@@ -481,12 +481,13 @@ fn api(
         "policy" => policy(ledger_dir),
         "trust" => trust(ledger_dir),
         "approvals" => approvals(ledger_dir),
+        "operations" => operations(ledger_dir, query),
         "verify" => verify(ledger_dir),
         _ => match route.strip_prefix("events/") {
             Some(id) if !id.is_empty() && !id.contains('/') => one_event(ledger_dir, id),
             _ => Err(not_found(Fault::new(
                 format!("/api/{route} is not a route"),
-                "the routes are /api/projects, /api/projects/:id/scan, /api/projects/:id/remediate, /api/score, /api/head, /api/events, /api/events/:id, /api/runs, /api/policy, /api/trust, /api/approvals and /api/verify; see docs/CONSOLE-API.md",
+                "the routes are /api/projects, /api/projects/:id/scan, /api/projects/:id/remediate, /api/score, /api/head, /api/events, /api/events/:id, /api/runs, /api/policy, /api/trust, /api/approvals, /api/operations and /api/verify; see docs/CONSOLE-API.md",
             ))),
         },
     }
@@ -889,6 +890,187 @@ fn runs(ledger_dir: &str) -> Result<Value, ApiError> {
         })
         .collect();
     Ok(json!({ "runs": runs }))
+}
+
+/// How many samples a percentile needs before it is reported as a number.
+///
+/// A p95 over four calls is decoration: it names one sample and dresses it as
+/// a distribution. Below the floor the percentile is null and the sample count
+/// is reported beside it, so the tile says how much evidence there is rather
+/// than printing a confident number over almost none.
+const LATENCY_SAMPLE_FLOOR: usize = 20;
+
+/// The topology's nodes and the kinds each one produces.
+///
+/// Nodes only. There are no edges here and none are derived: an edge asserts a
+/// handoff, and the only thing that may assert one is a producer recording a
+/// peer, which is the rule `assets/trace.js` holds through `PEER_FIELD`. The
+/// operations view draws its edges from a declared layout labelled as
+/// architecture, and this table is what makes the nodes light up from real
+/// events rather than from that layout.
+const TOPOLOGY_NODES: &[(&str, &[&str])] = &[
+    ("gateway", &["model.call"]),
+    ("policy gate", &["policy.decision"]),
+    (
+        "tool broker",
+        &["tool.register", "tool.request", "tool.result"],
+    ),
+    ("sensor bus", &["sensor.verdict"]),
+    ("trust budget", &["capability.run", "rung.change"]),
+    ("human approval", &["approval", "approval.use"]),
+    (
+        "evidence ledger",
+        &["run.open", "run.seal", "ledger.anchor"],
+    ),
+];
+
+/// The operations aggregate: the whole ledger reduced to what one screen shows.
+///
+/// Computed here rather than in the browser, and that is the point of the
+/// route existing at all. `/api/events` caps at 1000 rows, so a front end
+/// counting denials or taking a percentile over a page would be describing the
+/// page while the screen reads as a statement about the log. That is the same
+/// failure `CLAUDE.md` names for the trace view reporting a browser-side
+/// filter count, and a dashboard is where it would do the most damage.
+///
+/// Two rules the shape carries, so no caller can get them wrong:
+///
+/// - **Absent is not zero.** A kind the ledger has never carried counts null,
+///   because "the producer never recorded one" and "none happened in this
+///   window" are different states and only the second is a zero. This is the
+///   distinction `src/scan.rs` already draws between a path that held nothing
+///   and a path nobody looked in.
+/// - **Every number names its source.** A count carries the kind and field it
+///   came from, so a tile can print the path behind it. A number with no path
+///   is an opinion, which `docs/PRIMITIVES.md` refuses.
+fn operations(ledger_dir: &str, query: &[(String, String)]) -> Result<Value, ApiError> {
+    let window = query
+        .iter()
+        .find(|(k, _)| k == "window")
+        .map(|(_, v)| v.as_str())
+        .unwrap_or("24h");
+    // The boundary is wall clock, because "runs in the last 24 hours" is a
+    // claim about now and not about the newest row. A ledger nobody has
+    // written to today reports zero, which is the true answer and the one a
+    // stale dashboard hides.
+    let since = match window {
+        "all" => None,
+        "24h" => Some(hours_ago(24)),
+        "7d" => Some(hours_ago(24 * 7)),
+        _ => {
+            return Err(bad_request(Fault::new(
+                format!("window={window} is not a window this route reads"),
+                "the windows are 24h, 7d and all",
+            )))
+        }
+    };
+
+    let events = annotated_events(&open_ledger(ledger_dir)?)?;
+    let total_events = events.len();
+    let in_window: Vec<&Value> = events
+        .iter()
+        .filter(|e| match &since {
+            // RFC 3339 UTC at fixed width, so lexical order is chronological
+            // order and no date parsing is needed to answer this.
+            Some(boundary) => e["ts"].as_str().unwrap_or_default() >= boundary.as_str(),
+            None => true,
+        })
+        .collect();
+
+    // Kinds present anywhere in the log, which is what separates a real zero
+    // from nothing to read.
+    let mut ever: BTreeMap<&str, usize> = BTreeMap::new();
+    for event in &events {
+        *ever
+            .entry(event["kind"].as_str().unwrap_or_default())
+            .or_insert(0) += 1;
+    }
+    let ever_seen = |kinds: &[&str]| kinds.iter().any(|k| ever.contains_key(k));
+
+    let count_kind = |kind: &str| in_window.iter().filter(|e| e["kind"] == kind).count();
+    let count_verdict = |verdict: &str| {
+        in_window
+            .iter()
+            .filter(|e| e["kind"] == "policy.decision" && e["_subject"]["verdict"] == verdict)
+            .count()
+    };
+    // A count is null when the producer has never written that kind at all.
+    let counted = |present: bool, count: usize, source: &str| json!({ "count": if present { json!(count) } else { Value::Null }, "source": source });
+
+    let decisions_exist = ever.contains_key("policy.decision");
+    let counts = json!({
+        "runs_opened": counted(ever.contains_key("run.open"), count_kind("run.open"), "run.open"),
+        "runs_sealed": counted(ever.contains_key("run.seal"), count_kind("run.seal"), "run.seal"),
+        "denials": counted(decisions_exist, count_verdict("deny"), "policy.decision where verdict is deny"),
+        "holds": counted(decisions_exist, count_verdict("hold"), "policy.decision where verdict is hold"),
+        "approvals": counted(ever.contains_key("approval"), count_kind("approval"), "approval"),
+    });
+
+    let topology: Vec<Value> = TOPOLOGY_NODES
+        .iter()
+        .map(|(node, kinds)| {
+            let events = in_window
+                .iter()
+                .filter(|e| kinds.iter().any(|k| e["kind"] == *k))
+                .count();
+            json!({
+                "node": node,
+                "kinds": kinds,
+                "events": if ever_seen(kinds) { json!(events) } else { Value::Null },
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "window": window,
+        "since": since,
+        "scanned": in_window.len(),
+        "total_events": total_events,
+        "counts": counts,
+        "gate_latency": latency(&in_window, "tool.result", "duration_ms"),
+        "model_latency": latency(&in_window, "model.call", "latency_ms"),
+        "topology": topology,
+    }))
+}
+
+/// An RFC 3339 boundary `hours` before now, in the format `ts` already uses.
+fn hours_ago(hours: u64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    crate::gateway::rfc3339_from_unix(now.as_secs().saturating_sub(hours * 3600), 0)
+}
+
+/// Percentiles over one numeric field of one event kind.
+///
+/// Nearest-rank on the sorted samples, and the sample count travels with the
+/// answer. Below `LATENCY_SAMPLE_FLOOR` the percentiles are null rather than
+/// small-sample noise printed as a measurement; `max` is reported regardless,
+/// because the slowest call that happened is a fact about one call and needs
+/// no distribution behind it.
+fn latency(events: &[&Value], kind: &str, field: &str) -> Value {
+    let mut samples: Vec<u64> = events
+        .iter()
+        .filter(|e| e["kind"] == kind)
+        .filter_map(|e| e["_subject"][field].as_u64())
+        .collect();
+    samples.sort_unstable();
+    let n = samples.len();
+    let at = |q: f64| -> Value {
+        if n < LATENCY_SAMPLE_FLOOR {
+            return Value::Null;
+        }
+        let rank = ((q * n as f64).ceil() as usize).clamp(1, n);
+        json!(samples[rank - 1])
+    };
+    json!({
+        "p50": at(0.50),
+        "p95": at(0.95),
+        "max": samples.last().map(|v| json!(v)).unwrap_or(Value::Null),
+        "samples": n,
+        "floor": LATENCY_SAMPLE_FLOOR,
+        "source": format!("{kind}.{field}"),
+    })
 }
 
 fn load_policy() -> Result<(Policy, String), ApiError> {
