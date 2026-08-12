@@ -491,18 +491,41 @@ CSS and ES modules embedded at compile time, and the logo travels as a data
 URI. Nothing is fetched from any host, which is what lets the air-gap claim
 survive having a UI at all.
 
+Started with no argument it answers for the whole workspace, which needs no
+ledger at all: a static scan reads a tree, and a tree has no log.
+
+```
+$ ./target/debug/gantry console
+console at http://127.0.0.1:49159/ (ctrl-c to stop)
+```
+
+<p align="center">
+  <img src="docs/assets/console-workspace.png" alt="The console workspace view: a project index, the twelve primitives as a bar chart with a rail resting on the minimum, the primitives holding that rail marked in hazard, and the evidence sentence behind every number" width="900">
+</p>
+
+The rail rests on the shortest bar, because the overall level is the minimum
+and never the average. The primitives holding it down are marked, the band a
+static read cannot enter is drawn rather than described, and every number has
+the path it came from underneath it. Below the chart, the same page carries
+the remediation queue in the contracts' own words.
+
+Started against a ledger it answers for that log instead:
+
 ```
 $ ./target/debug/gantry console /tmp/demo/ledger 127.0.0.1:8731
 console at http://127.0.0.1:8731/ (ctrl-c to stop)
 ```
 
 <p align="center">
-  <img src="docs/assets/console-overview.png" alt="The console overview: overall level, the twelve primitives, event volume, attestation coverage and the signed tree head" width="900">
+  <img src="docs/assets/console-overview.png" alt="The console overview: overall level, events scored, ledger size and attestation coverage, then the twelve primitives with the evidence sentence and a sample event behind each number" width="900">
 </p>
 
-Six views over a read-only JSON API (`docs/CONSOLE-API.md`):
+Nine views over a read-only JSON API (`docs/CONSOLE-API.md`):
 
-- **Overview**, above. The overall level, the twelve primitives with the
+- **Workspace**, above. Every registered project scored, the twelve
+  primitives as a rail chart, the evidence behind each number and the
+  remediation queue.
+- **Overview**, the scorecard for one ledger. The overall level, the twelve primitives with the
   evidence sentence behind each number, event volume, the signed tree head,
   and how many events carry an attestation.
 - **Ledger**, the event stream with filters by kind, run, actor and time.
@@ -515,6 +538,11 @@ Six views over a read-only JSON API (`docs/CONSOLE-API.md`):
   fired. A rule that never fires is shown, not hidden.
 - **Trust**, each capability's declared rung against the rung it earned from
   replay, and which one the broker actually gates on.
+- **Trace**, the ledger as swimlanes on a clock, one lane per actor, with an
+  arrow only where a producer recorded a handoff. The picture is sparse and
+  the sparseness is the finding.
+- **Inbox**, every call the policy held, what the record says has happened to
+  it, and the exact `gantry approve` command that resolves it.
 - **Verify**, the verification result and the offline command that reproduces
   it.
 
@@ -540,8 +568,8 @@ found and hands you the command that checks the server.
 `gantry score <ledger> <rules.json> <out.html>` still writes the scorecard as
 a single self-contained file, for attaching to a report.
 
-Not built yet: no approval inbox, no inclusion-proof view, no sensor board,
-no anchoring view. Live update is a poll, not a stream.
+Not built yet: no inclusion-proof view, no sensor board, no anchoring view.
+Live update is a poll, not a stream, and only the ledger view polls.
 
 ## What runs today
 
