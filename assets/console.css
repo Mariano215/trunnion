@@ -261,9 +261,23 @@ kbd {
 .mark a { color: inherit; }
 .mark a:hover { text-decoration: none; }
 .mark span { color: var(--fg-faint); }
-.tag { color: var(--fg-dim); font-size: var(--fs); margin: 9px 0 0; max-width: 56ch; }
+.mast-tag { color: var(--fg-dim); font-size: var(--fs); margin: 9px 0 0; max-width: 56ch; }
+/* Not `.tag`. That name was taken from the design prototype for this line
+   while the console already used it for the small status pills further down
+   this file, which set a border, a monospace face and white-space: nowrap.
+   Source order gave the pill rule the win, so the masthead sentence rendered
+   in a bordered box that refused to wrap and painted across the nav. */
+
+/* The masthead's first column needs a basis of its own. Without one it is
+   sized by the wordmark, which is short, and the tagline underneath it is
+   wider than that, overflows the flex item and paints straight across the
+   nav. A screenshot is what found this: the text is legible either side of
+   the collision, so reading the page does not show it and rendering the page
+   does. */
+.mast > div { flex: 1 1 34ch; min-width: 0; }
 
 .nav {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 2px 14px;

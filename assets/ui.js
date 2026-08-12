@@ -47,6 +47,20 @@ export const clear = (n) => {
   return n;
 };
 
+// Append children the way `el` does, skipping null, undefined and false and
+// flattening arrays.
+//
+// The native `Node.append` does none of that: it stringifies, so a
+// `condition ? node : null` passed to `clear(host).append(...)` puts the word
+// "null" on the page. That shipped, and a screenshot of the workspace view is
+// what found it, because the console's own render gate asserts on values that
+// are present and cannot see a stray word that is not. Anything building a
+// list of maybe-children uses this rather than the DOM method.
+export const append = (n, ...children) => {
+  add(n, children);
+  return n;
+};
+
 export const mono = (s, cls) => el('span', { class: cls ? `mono ${cls}` : 'mono' }, s ?? '');
 
 // ---------- formatting ----------

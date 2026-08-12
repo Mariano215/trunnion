@@ -4,7 +4,7 @@
 import { api, state, ledgerBroken } from '/api.js';
 import { trace } from '/trace.js';
 import {
-  el, clear, mono, panel, stat, kv, table, td, jsonPretty, commandBox, errPanel, loading,
+  el, clear, append, mono, panel, stat, kv, table, td, jsonPretty, commandBox, errPanel, loading,
   shortHash, shortId, tsShort, tsDate, durationMs, num, actorId,
   attMark, attRowClass, subjectSummary, volumeChart,
 } from '/ui.js';
@@ -318,7 +318,7 @@ export async function workspace(host, route) {
   // judgement the scan did not make.
   const nonAgentic = zeros >= 10;
 
-  clear(profileSlot).append(
+  append(clear(profileSlot),
     nonAgentic
       ? el('div', { class: 'nonagentic' },
         el('b', {}, 'Little or no agentic surface. '),
