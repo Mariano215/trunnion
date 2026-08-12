@@ -7,18 +7,18 @@
 //! operator is looking at a typo and the fault is the only thing that tells
 //! them which one.
 //!
-//! Every test drives the library, which takes the gantry home as an argument,
-//! so no test can reach the operator's real `~/.gantry` even if the
-//! environment says otherwise. The one test that reads `GANTRY_HOME` is the
+//! Every test drives the library, which takes the trunnion home as an argument,
+//! so no test can reach the operator's real `~/.trunnion` even if the
+//! environment says otherwise. The one test that reads `TRUNNION_HOME` is the
 //! only one that sets it.
 
-use gantry::workspace::{self, Risk, Source, Workspace};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use trunnion::workspace::{self, Risk, Source, Workspace};
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-ws-it-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-ws-it-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -163,12 +163,12 @@ fn a_git_project_is_cloned_pinned_to_a_commit_and_scanned_from_the_cache() {
     );
     assert!(rev.chars().all(|c| c.is_ascii_hexdigit()), "rev: {rev}");
 
-    // The clone lands under the gantry home, never beside the source, and it
+    // The clone lands under the trunnion home, never beside the source, and it
     // is what a scan of this project reads.
     let checkout = ws.checkout(&home, &added);
     assert_eq!(checkout, workspace::cache_dir(&home, "remote"));
     assert!(checkout.join("CLAUDE.md").is_file());
-    let report = gantry::scan::scan(&gantry::scan::RepoRead::open(&checkout).unwrap());
+    let report = trunnion::scan::scan(&trunnion::scan::RepoRead::open(&checkout).unwrap());
     assert!(
         report.findings.iter().any(|f| f.score > 0),
         "the pinned checkout scans through the same scan() the single-repository command uses"
@@ -245,19 +245,19 @@ fn a_duplicate_id_names_the_project_already_registered() {
 }
 
 #[test]
-fn the_registry_lives_where_gantry_home_says_and_a_missing_one_is_empty() {
+fn the_registry_lives_where_trunnion_home_says_and_a_missing_one_is_empty() {
     let root = workdir("home");
     let home = root.join("elsewhere");
     // The only test that touches the environment, because it is the only
     // thing under test here; every other test passes the home in, which is
-    // what makes reaching the real ~/.gantry impossible rather than unlikely.
-    std::env::set_var("GANTRY_HOME", &home);
+    // what makes reaching the real ~/.trunnion impossible rather than unlikely.
+    std::env::set_var("TRUNNION_HOME", &home);
     assert_eq!(workspace::home().unwrap(), home);
     assert_eq!(
         workspace::registry_path(&workspace::home().unwrap()),
         home.join("workspace.json")
     );
-    std::env::remove_var("GANTRY_HOME");
+    std::env::remove_var("TRUNNION_HOME");
 
     // An install that has registered nothing is a state, not a failure: the
     // file is absent until the first add writes it.
@@ -295,7 +295,7 @@ fn a_registry_this_build_cannot_read_is_refused_rather_than_started_over() {
 /// `remove` deliberately leaves the checkout: an operator who removed a
 /// project by mistake still has the tree. That is only safe if re-adding the
 /// same id works, and it did not — the clone refused a destination that
-/// already existed, so remove-then-add failed on a directory gantry wrote
+/// already existed, so remove-then-add failed on a directory trunnion wrote
 /// itself. A clone killed part way leaves the same tree and the same dead end.
 #[test]
 fn a_leftover_checkout_does_not_block_re_adding_the_id() {

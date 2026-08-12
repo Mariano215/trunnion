@@ -738,7 +738,7 @@ mod tests {
 
     fn load_str(text: &str) -> Result<Policy, Fault> {
         let dir = std::env::temp_dir().join(format!(
-            "gantry-pol-{}-{:?}",
+            "trunnion-pol-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));

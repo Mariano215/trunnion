@@ -470,7 +470,7 @@ fn api(
     let ledger_dir = ledger_dir.ok_or_else(|| {
         not_found(Fault::new(
             "this console was started without a ledger, so there is no log to read",
-            "the workspace routes are /api/projects and /api/projects/:id/scan; for a log, run gantry console <ledger-dir>",
+            "the workspace routes are /api/projects and /api/projects/:id/scan; for a log, run trunnion console <ledger-dir>",
         ))
     })?;
     match route {
@@ -560,7 +560,7 @@ fn project_route(rest: &str) -> Result<Value, ApiError> {
     let project = ws.find(id).cloned().ok_or_else(|| {
         not_found(Fault::new(
             format!("the workspace has no project called {id}"),
-            "read /api/projects for the registered ids, or register this one with gantry project add <path-or-url>",
+            "read /api/projects for the registered ids, or register this one with trunnion project add <path-or-url>",
         ))
     })?;
     let dir = ws.checkout(&home, &project);
@@ -640,7 +640,7 @@ fn actor_keys() -> Result<(Vec<String>, Vec<String>), ApiError> {
 
 /// Every event with its subject inlined and its attestation state derived.
 /// The state comes from `ledger::ActorKeys`, the same code path the full
-/// verifier uses, so the API and `gantry ledger verify` cannot disagree about
+/// verifier uses, so the API and `trunnion ledger verify` cannot disagree about
 /// whether a signature is good.
 fn annotated_events(ledger: &Ledger) -> Result<Vec<Value>, ApiError> {
     let (registered, published) = actor_keys()?;
@@ -1038,7 +1038,7 @@ fn approvals(ledger_dir: &str) -> Result<Value, ApiError> {
 
     // A decision names the call it decided, so the pairing is a join on what
     // the record carries. Emission order is the fallback for ledgers written
-    // before those fields existed. Same walk as `gantry approve`, and the two
+    // before those fields existed. Same walk as `trunnion approve`, and the two
     // have to agree: this one prints the command that one runs.
     let mut holds: Vec<Hold> = Vec::new();
     let mut pending: Option<(String, String)> = None;
@@ -1237,7 +1237,7 @@ fn approvals(ledger_dir: &str) -> Result<Value, ApiError> {
                 "releases_next_call": usable,
                 "grants": h.grants,
                 "approve_command": format!(
-                    "gantry approve {ledger_path} {} {approver_arg}", h.request_id
+                    "trunnion approve {ledger_path} {} {approver_arg}", h.request_id
                 ),
             })
         })
@@ -1313,7 +1313,7 @@ fn verify(ledger_dir: &str) -> Result<Value, ApiError> {
         "head": head,
         // The exact offline command that reaches the same verdict without
         // this server. The console reports; it never claims to have verified.
-        "reproduce": format!("gantry ledger verify {path}"),
+        "reproduce": format!("trunnion ledger verify {path}"),
     }))
 }
 
@@ -1321,7 +1321,7 @@ fn verify(ledger_dir: &str) -> Result<Value, ApiError> {
 
 /// The scorecard as one self-contained page, generated from a snapshot. The
 /// served console is the six-view application under `assets/`; this remains
-/// because `gantry score <ledger> <rules> <out.html>` writes a single file
+/// because `trunnion score <ledger> <rules> <out.html>` writes a single file
 /// somebody can attach to a report, which a client-rendered app cannot do.
 pub fn scorecard_html(snapshot: &ScoreSnapshot) -> String {
     let overall = snapshot
@@ -1348,12 +1348,12 @@ pub fn scorecard_html(snapshot: &ScoreSnapshot) -> String {
         ));
     }
     format!(
-        "<!doctype html><meta charset=utf-8><title>Gantry conformance</title>\
+        "<!doctype html><meta charset=utf-8><title>Trunnion conformance</title>\
 <style>body{{font:15px system-ui;margin:2rem;max-width:60rem}}table{{border-collapse:collapse;width:100%}}\
 td,th{{border:1px solid #ccc;padding:.4rem .6rem;text-align:left}}.score{{font-weight:700;text-align:center}}\
 tr.good{{background:#e6f4ea}}tr.ok{{background:#fff8e1}}tr.low{{background:#fdecea}}tr.na{{color:#888}}\
 .overall{{font-size:1.4rem;margin:1rem 0}}</style>\
-<h1>Gantry conformance, scored from its own telemetry</h1>\
+<h1>Trunnion conformance, scored from its own telemetry</h1>\
 <p class=overall><b>Overall level: {overall}</b> (the minimum across scored primitives, not the average)</p>\
 <table><tr><th>#</th><th>Primitive</th><th>Score</th><th>Evidence</th></tr>\n{rows}</table>\
 <p>Rules {}, {} events scored. Overall is the minimum by rule: one weak layer caps the whole.</p>",

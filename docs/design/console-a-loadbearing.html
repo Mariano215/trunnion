@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>gantry console — workspace</title>
+<title>trunnion console — workspace</title>
 <style>
   :root{
     --ground:#E7E5E0;
@@ -355,7 +355,7 @@
 
   <header class="mast">
     <div>
-      <h1 class="mark">Gantry<span>.</span></h1>
+      <h1 class="mark">Trunnion<span>.</span></h1>
       <p class="tag">Twelve primitives, a path behind every number. The overall level is the
         minimum across them, never the average.</p>
     </div>
@@ -371,8 +371,8 @@
   <!-- ============ the rail chart ============ -->
   <section class="panel" id="chartPanel">
     <div class="panel-hd">
-      <p class="eyebrow" id="chartTitle">Profile — gantry</p>
-      <p class="panel-note" id="chartNote">/Volumes/T7/Projects/gantry</p>
+      <p class="eyebrow" id="chartTitle">Profile — trunnion</p>
+      <p class="panel-note" id="chartNote">/Volumes/T7/Projects/trunnion</p>
     </div>
 
     <div class="nonagentic" id="nonagentic"></div>
@@ -429,14 +429,14 @@
           A file says a check is wired. Only a run says it fired. Route this project through
           the gateway and the broker and every tool call, policy verdict and approval lands in
           a tamper-evident log — which is the only way any primitive here moves above 3.
-          <code>gantry instrument gantry</code>
+          <code>trunnion instrument trunnion</code>
         </p>
       </div>
     </div>
   </section>
 
   <footer>
-    <span>Gantry &nbsp;·&nbsp; Apache 2.0 &nbsp;·&nbsp; local, read only, no network</span>
+    <span>Trunnion &nbsp;·&nbsp; Apache 2.0 &nbsp;·&nbsp; local, read only, no network</span>
     <span>Minimum rule enforced &nbsp;·&nbsp; static ceiling 3</span>
   </footer>
 </div>
@@ -460,7 +460,7 @@
     return a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
   }
 
-  // Real output of `gantry scan` against these five repositories, 2026-08-11.
+  // Real output of `trunnion scan` against these five repositories, 2026-08-11.
   var LOOKED = {
     3:"looked in graphify-out/, retrieval.json, embeddings/, vectorstore/, .rag/, .index/: found nothing",
     4:"looked in .mcp.json, .cursor/mcp.json, tools/, config/tools/, openapi.json, openapi.yaml: found nothing",
@@ -479,7 +479,7 @@
   var WIRED = "a file says the check is wired, only telemetry says it ran";
 
   var PROJECTS = [
-    { id:"gantry", path:"/Volumes/T7/Projects/gantry",
+    { id:"trunnion", path:"/Volumes/T7/Projects/trunnion",
       v:[3,2,0,0,3,3,3,0,2,3,0,3],
       ev:[
         'found CLAUDE.md, instructions/, and ci/console-render.sh names it (contains "instruction"); '+WIRED,
@@ -709,7 +709,7 @@
         '<div>' +
           '<h4>'+NAMES[i]+'</h4>' +
           '<p>Raise from '+p.v[i]+' to '+nextLevel(floor)+'. '+gapFor(i, p.v[i])+
-          ' <code>gantry project remediate '+p.id+' --primitive '+pn+'</code></p>' +
+          ' <code>trunnion project remediate '+p.id+' --primitive '+pn+'</code></p>' +
         '</div>';
       lift.appendChild(li);
     });

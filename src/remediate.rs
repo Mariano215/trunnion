@@ -11,9 +11,9 @@
 //! repository's own evidence and shortfall, which the scan already produced.
 //! Neither half is rewritten in this file.
 //!
-//! What this deliberately is not. `contracts.yaml` says gantry does not read it
+//! What this deliberately is not. `contracts.yaml` says trunnion does not read it
 //! and must not, and that line is what keeps prescription and scoring apart:
-//! harness-kit refuses to infer a level, gantry refuses to prescribe one. The
+//! harness-kit refuses to infer a level, trunnion refuses to prescribe one. The
 //! rule survives here because the contracts are quoted and never measured
 //! against. Nothing in this module returns a number, `scan` and `scorer` do not
 //! reference it, and `tests/invariants.rs` fails the build if that changes,
@@ -361,7 +361,7 @@ pub fn document(report: &ScanReport, risk: Risk, project: &str) -> Result<String
     if gaps.is_empty() {
         s.push_str(
             "\nNothing is below the next reachable level. A static read stops at 3; for 4 and\n\
-             above, run gantry score over a ledger, which reads events rather than files.\n",
+             above, run trunnion score over a ledger, which reads events rather than files.\n",
         );
         return Ok(s);
     }

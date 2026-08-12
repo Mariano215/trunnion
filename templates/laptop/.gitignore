@@ -1,4 +1,4 @@
-# This harness's own signing seed. gantry template init generates it at mode
+# This harness's own signing seed. trunnion template init generates it at mode
 # 0600 and it is the one piece of real key material in here: whoever holds it
 # can sign events as this harness, so a signature stops proving which run wrote
 # an event. It is ignored rather than allowlisted in a scanner, because a

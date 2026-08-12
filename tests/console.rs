@@ -3,19 +3,19 @@
 //! loopback is what `tests/sandbox.rs` already does and it is not a route out:
 //! the listener is this process, so the suite stays offline.
 
-use gantry::console;
-use gantry::event::NewEvent;
-use gantry::ledger::Ledger;
 use serde_json::{json, Value};
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::{fs, thread};
+use trunnion::console;
+use trunnion::event::NewEvent;
+use trunnion::ledger::Ledger;
 
 // -- fixture ----------------------------------------------------------------
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-console-it-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-console-it-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -433,7 +433,7 @@ fn every_route_answers_from_the_ledger_in_the_contracted_shape() {
     assert_eq!(verify["head"]["size"], json!(8));
     let reproduce = verify["reproduce"].as_str().unwrap();
     assert!(
-        reproduce.starts_with("gantry ledger verify /"),
+        reproduce.starts_with("trunnion ledger verify /"),
         "reproduce must be the runnable offline command: {reproduce}"
     );
 
@@ -559,7 +559,7 @@ fn the_inbox_names_every_held_call_and_what_the_record_says_about_it() {
     // a ledger to find out a run is blocked on them has no inbox at all.
     let cmd = a_hold["approve_command"].as_str().unwrap();
     assert!(
-        cmd.starts_with("gantry approve /") && cmd.contains(" req-a "),
+        cmd.starts_with("trunnion approve /") && cmd.contains(" req-a "),
         "the command must be runnable as printed: {cmd}"
     );
 
@@ -738,7 +738,7 @@ fn a_mutated_event_makes_verify_report_not_ok_and_name_the_entry() {
         verify["reproduce"]
             .as_str()
             .unwrap()
-            .starts_with("gantry ledger verify "),
+            .starts_with("trunnion ledger verify "),
         "the reader gets the command that checks the server"
     );
 }
@@ -853,25 +853,25 @@ fn verify_reports_a_seq_gap_and_the_ledger_still_reads_ok() {
 
 /// The workspace routes, and the state a console started without a ledger is in.
 ///
-/// One test rather than several: `GANTRY_HOME` is process-global and the tests
+/// One test rather than several: `TRUNNION_HOME` is process-global and the tests
 /// in this binary run in parallel, so a second test setting it would be racing
 /// this one for the same variable.
 #[test]
 fn the_workspace_routes_answer_without_a_ledger_and_the_log_routes_say_why_they_cannot() {
-    let root = std::env::temp_dir().join(format!("gantry-console-ws-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("trunnion-console-ws-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     let home = root.join("home");
     let project = root.join("code/demo");
     fs::create_dir_all(project.join(".claude")).unwrap();
     fs::write(project.join("CLAUDE.md"), "# rules\n").unwrap();
-    std::env::set_var("GANTRY_HOME", &home);
+    std::env::set_var("TRUNNION_HOME", &home);
 
-    let mut ws = gantry::workspace::Workspace::load(&home).unwrap();
+    let mut ws = trunnion::workspace::Workspace::load(&home).unwrap();
     ws.add(
         &home,
         &project.display().to_string(),
         Some("demo"),
-        gantry::workspace::Risk::Regulated,
+        trunnion::workspace::Risk::Regulated,
     )
     .unwrap();
     ws.save(&home).unwrap();
@@ -934,5 +934,5 @@ fn the_workspace_routes_answer_without_a_ledger_and_the_log_routes_say_why_they_
     assert_eq!(missing.status, 404);
     assert!(missing.body.contains("nope"), "{}", missing.body);
 
-    std::env::remove_var("GANTRY_HOME");
+    std::env::remove_var("TRUNNION_HOME");
 }

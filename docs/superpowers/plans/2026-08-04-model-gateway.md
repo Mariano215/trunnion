@@ -4,7 +4,7 @@
 
 **Goal:** Every model call goes through `gateway::GatewayRun`, which appends schema v2 events (`run.open`, `model.call`, `run.seal`) to the slice 01 ledger; one OpenAI-compatible adapter proves three environments produce one envelope shape.
 
-**Architecture:** A `gateway` module in the existing `gantry` crate. `GatewayRun` owns an open `Ledger` and is the only way to issue a model call, so the chokepoint is structural. One blocking HTTP adapter (`ureq`) speaks OpenAI-compatible `POST {base_url}/chat/completions` to all three environments. A `gantry run` subcommand executes a fixed two-turn workload.
+**Architecture:** A `gateway` module in the existing `trunnion` crate. `GatewayRun` owns an open `Ledger` and is the only way to issue a model call, so the chokepoint is structural. One blocking HTTP adapter (`ureq`) speaks OpenAI-compatible `POST {base_url}/chat/completions` to all three environments. A `trunnion run` subcommand executes a fixed two-turn workload.
 
 **Tech Stack:** Rust 2021, existing crate (`serde`, `serde_json`, `serde_jcs`, `sha2`, `hex`), new dependency `ureq` 2 with rustls.
 
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn file_hash_pins_bytes() {
-        let dir = std::env::temp_dir().join(format!("gantry-gw-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("trunnion-gw-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join("pack.md");
         std::fs::write(&p, b"instruction pack v1").unwrap();
@@ -159,7 +159,7 @@ git commit -m "feat(slice-02): gateway timestamp and version-pinning helpers"
 - Test: `tests/gateway.rs` (create)
 
 **Interfaces:**
-- Consumes: `gantry::ledger::Ledger` (`Ledger::init(&Path) -> Result<Ledger, Fault>`, `Ledger::open`, `append(NewEvent) -> Result<Envelope, Fault>`, `latest_head() -> Result<SignedHead, Fault>`, `size() -> usize`), `gantry::event::NewEvent`, Task 1 helpers.
+- Consumes: `trunnion::ledger::Ledger` (`Ledger::init(&Path) -> Result<Ledger, Fault>`, `Ledger::open`, `append(NewEvent) -> Result<Envelope, Fault>`, `latest_head() -> Result<SignedHead, Fault>`, `size() -> usize`), `trunnion::event::NewEvent`, Task 1 helpers.
 - Produces:
   - `pub struct Provider { pub name: String, pub base_url: String, pub model: String, pub key_env: Option<String>, pub window_budget: u64, pub cost_in_per_mtok: f64, pub cost_out_per_mtok: f64 }` (Serialize, Deserialize, Clone, Debug; the three optional fields `#[serde(default)]`).
   - `pub struct Pinning { pub policy: PathBuf, pub instructions: PathBuf, pub settings: Option<PathBuf> }`
@@ -171,13 +171,13 @@ git commit -m "feat(slice-02): gateway timestamp and version-pinning helpers"
 Create `tests/gateway.rs`:
 
 ```rust
-use gantry::gateway::{GatewayRun, Pinning};
-use gantry::ledger::{self, Ledger};
+use trunnion::gateway::{GatewayRun, Pinning};
+use trunnion::ledger::{self, Ledger};
 use std::fs;
 use std::path::PathBuf;
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-gw-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-gw-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -302,7 +302,7 @@ impl GatewayRun {
         });
         let actor = json!({
             "type": "agent",
-            "id": "agent:gantry-run",
+            "id": "agent:trunnion-run",
             "identity_source": "local",
             "rung": "assisted",
         });
@@ -395,7 +395,7 @@ git commit -m "feat(slice-02): GatewayRun opens and seals runs as ledger events"
 - Test: `tests/gateway.rs`
 
 **Interfaces:**
-- Consumes: Task 2 `GatewayRun`, `Provider`; `gantry::event::subject_hash(&Value) -> Result<String, Fault>`.
+- Consumes: Task 2 `GatewayRun`, `Provider`; `trunnion::event::subject_hash(&Value) -> Result<String, Fault>`.
 - Produces:
   - `pub struct ChatMessage { pub role: String, pub content: String }` (Serialize, Clone, Debug), `pub fn msg(role: &str, content: &str) -> ChatMessage`.
   - `pub struct CallResult { pub content: String, pub prompt_tokens: u64, pub completion_tokens: u64, pub latency_ms: u64 }`
@@ -431,7 +431,7 @@ Expected: compiles.
 Append to `tests/gateway.rs`:
 
 ```rust
-use gantry::gateway::{msg, Provider};
+use trunnion::gateway::{msg, Provider};
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
@@ -539,9 +539,9 @@ fn missing_key_faults_before_any_request() {
     let dir = workdir("call-nokey");
     let pin = pinning(&dir);
     let mut run = GatewayRun::open(Ledger::init(&dir.join("ledger")).unwrap(), "smoke", &pin).unwrap();
-    let p = provider("http://127.0.0.1:1/v1", "stub", Some("GANTRY_TEST_UNSET_KEY"));
+    let p = provider("http://127.0.0.1:1/v1", "stub", Some("TRUNNION_TEST_UNSET_KEY"));
     let fault = run.call(&p, &[msg("user", "hello")]).unwrap_err();
-    assert!(fault.fix.contains("GANTRY_TEST_UNSET_KEY"), "fix names the var: {fault}");
+    assert!(fault.fix.contains("TRUNNION_TEST_UNSET_KEY"), "fix names the var: {fault}");
 }
 ```
 
@@ -728,7 +728,7 @@ fn http_500_is_a_ledger_event() {
     assert_eq!(subject["outcome"], "error");
     assert!(subject["error"]["cause"].as_str().unwrap().contains("500"));
     assert!(!subject["error"]["fix"].as_str().unwrap().is_empty());
-    assert!(gantry::ledger::verify(&led).unwrap().ok());
+    assert!(trunnion::ledger::verify(&led).unwrap().ok());
 }
 
 #[test]
@@ -807,11 +807,11 @@ fn key_bytes_never_reach_the_ledger() {
     let dir = workdir("keyleak");
     let pin = pinning(&dir);
     let canary = "sk-canary-8c2f1a9d7e";
-    std::env::set_var("GANTRY_TEST_CANARY_KEY", canary);
+    std::env::set_var("TRUNNION_TEST_CANARY_KEY", canary);
     let (base, _srv) = stub(200, OK_BODY);
     let led = dir.join("ledger");
     let mut run = GatewayRun::open(Ledger::init(&led).unwrap(), "smoke", &pin).unwrap();
-    run.call(&provider(&base, "stub", Some("GANTRY_TEST_CANARY_KEY")), &[msg("user", "hello")]).unwrap();
+    run.call(&provider(&base, "stub", Some("TRUNNION_TEST_CANARY_KEY")), &[msg("user", "hello")]).unwrap();
     run.seal("complete").unwrap();
     for entry in fs::read_dir(&led).unwrap().chain(fs::read_dir(led.join("payloads")).unwrap()) {
         let path = entry.unwrap().path();
@@ -848,7 +848,7 @@ git commit -m "test(slice-02): one shape across providers, no key bytes on the l
 
 **Interfaces:**
 - Consumes: `load_providers`, `GatewayRun`, `msg`, `Ledger::init`, `Ledger::open`.
-- Produces: `gantry run <providers.json> <provider-name> <ledger-dir>`.
+- Produces: `trunnion run <providers.json> <provider-name> <ledger-dir>`.
 
 - [ ] **Step 1: Create `instructions/pack.md`**
 
@@ -895,13 +895,13 @@ Cost rates are config data; correct them against the provider's price page at pr
 Add to the `USAGE` string:
 
 ```
-  gantry run <providers.json> <provider-name> <ledger-dir>
+  trunnion run <providers.json> <provider-name> <ledger-dir>
 ```
 
 Add imports:
 
 ```rust
-use gantry::gateway::{self, msg, GatewayRun, Pinning};
+use trunnion::gateway::{self, msg, GatewayRun, Pinning};
 ```
 
 Add the match arm before the `[]` arm:
@@ -954,14 +954,14 @@ If a call fails, `?` propagates the Fault after the event is already on the ledg
 Run: `cargo build && cargo clippy --all-targets -- -D warnings`
 Expected: clean.
 
-Run: `printf '[{"name":"dead","base_url":"http://127.0.0.1:9/v1","model":"x","window_budget":1}]' > /tmp/dead.json && ./target/debug/gantry run /tmp/dead.json dead /tmp/gantry-dead-ledger; ./target/debug/gantry ledger verify /tmp/gantry-dead-ledger`
+Run: `printf '[{"name":"dead","base_url":"http://127.0.0.1:9/v1","model":"x","window_budget":1}]' > /tmp/dead.json && ./target/debug/trunnion run /tmp/dead.json dead /tmp/trunnion-dead-ledger; ./target/debug/trunnion ledger verify /tmp/trunnion-dead-ledger`
 Expected: a Fault naming the fix, exit 1; verify shows 2 entries (run.open plus the error model.call) and passes.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add config/providers.json instructions/pack.md src/main.rs
-git commit -m "feat(slice-02): gantry run drives a pinned two-turn workload through the gateway"
+git commit -m "feat(slice-02): trunnion run drives a pinned two-turn workload through the gateway"
 ```
 
 ---
@@ -975,7 +975,7 @@ This task is run by the main session, not a subagent: it needs live keys, Tailsc
 - Modify: `CLAUDE.md` only if a new invariant emerges from the proof.
 
 **Interfaces:**
-- Consumes: `gantry run`, `gantry ledger verify`, `gantry ledger prove`, `gantry ledger verify-inclusion`.
+- Consumes: `trunnion run`, `trunnion ledger verify`, `trunnion ledger prove`, `trunnion ledger verify-inclusion`.
 - Produces: the proof document that closes the slice, via the `/proof` command.
 
 - [ ] **Step 1: Preflight the three environments**
@@ -998,8 +998,8 @@ Shape, mirroring `docs/proof/01-run.sh` conventions:
 #!/bin/zsh
 # Proof 02: one run per environment, three ledgers, one shape.
 set -e
-BIN=./target/debug/gantry
-WORK=$(mktemp -d /tmp/gantry-proof02.XXXXXX)
+BIN=./target/debug/trunnion
+WORK=$(mktemp -d /tmp/trunnion-proof02.XXXXXX)
 echo "workdir: $WORK"
 
 for name in openai gpu-box local; do
@@ -1033,10 +1033,10 @@ Iterate on the sandbox profile syntax until the negative control denies and the 
 ```bash
 cargo build
 zsh docs/proof/02-run.sh
-./target/debug/gantry ledger prove <workdir>/ledger-local 1 > /tmp/bundle02.json
+./target/debug/trunnion ledger prove <workdir>/ledger-local 1 > /tmp/bundle02.json
 cp <workdir>/ledger-local/ledger.pub /tmp/
 cd /tmp && sandbox-exec -p '(version 1)(allow default)(deny network*)' \
-  <repo>/target/debug/gantry ledger verify-inclusion bundle02.json ledger.pub
+  <repo>/target/debug/trunnion ledger verify-inclusion bundle02.json ledger.pub
 ```
 
 - [ ] **Step 4: Write the proof with the `/proof` command**

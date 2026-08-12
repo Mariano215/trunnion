@@ -4,16 +4,16 @@
 //! tracked `config/policy.json` as the laptop case and derive the `regulated`
 //! case from it, so the two differ only in what the profile declares.
 
-use gantry::broker::BrokerRun;
-use gantry::gateway::Pinning;
-use gantry::ledger::Ledger;
-use gantry::policy::{availability_check, unavailable_requirements, Policy, Providable};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
+use trunnion::broker::BrokerRun;
+use trunnion::gateway::Pinning;
+use trunnion::ledger::Ledger;
+use trunnion::policy::{availability_check, unavailable_requirements, Policy, Providable};
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-prof-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-prof-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -171,7 +171,7 @@ fn the_tracked_laptop_profile_starts_and_names_what_it_could_not_provide() {
     let dir = workdir("laptop");
     let policy_path = repo_path("config/policy.json");
     let policy = Policy::load(&policy_path).unwrap();
-    let backend = gantry::sandbox::active_backend();
+    let backend = trunnion::sandbox::active_backend();
     let providable = Providable::for_this_build(backend);
     let expected: Vec<&str> = vec![];
     let fields: Vec<String> = unavailable_requirements(&policy.profile_requirements, &providable)
@@ -278,7 +278,7 @@ fn the_gateway_refuses_the_same_profile() {
     let dir = workdir("regulated-gateway");
     let policy_path = regulated_policy(&dir, "refuse");
     let led = dir.join("ledger-gateway");
-    let fault = gantry::gateway::GatewayRun::open(
+    let fault = trunnion::gateway::GatewayRun::open(
         Ledger::init(&led).unwrap(),
         "gateway-test",
         &pinning(&dir, &policy_path),
@@ -307,7 +307,7 @@ fn an_unrecognised_stance_refuses_rather_than_degrading() {
 
 /// Availability is not divergence, and the seam is visible in the arguments:
 /// a host that can provide microvm answers yes for microvm even while this run
-/// observed seatbelt. That case is a divergence for `gantry drift` to report,
+/// observed seatbelt. That case is a divergence for `trunnion drift` to report,
 /// and this check must stay silent on it.
 #[test]
 fn a_declaration_the_host_can_provide_is_available_even_when_this_run_diverges() {

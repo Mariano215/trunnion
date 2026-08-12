@@ -213,21 +213,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gantry"
-version = "0.1.1"
-dependencies = [
- "ed25519-dalek",
- "getrandom",
- "hex",
- "landlock",
- "serde",
- "serde_jcs",
- "serde_json",
- "sha2",
- "ureq",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -711,6 +696,21 @@ checksum = "c8323304221c2a851516f22236c5722a72eaa19749016521d6dff0824447d96d"
 dependencies = [
  "displaydoc",
  "zerovec",
+]
+
+[[package]]
+name = "trunnion"
+version = "0.1.1"
+dependencies = [
+ "ed25519-dalek",
+ "getrandom",
+ "hex",
+ "landlock",
+ "serde",
+ "serde_jcs",
+ "serde_json",
+ "sha2",
+ "ureq",
 ]
 
 [[package]]

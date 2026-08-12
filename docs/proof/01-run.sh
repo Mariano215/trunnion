@@ -1,9 +1,9 @@
 #!/bin/zsh
 # Proof 01 run script. Re-runnable: builds a throwaway ledger in a temp dir
-# and attacks it. Run from anywhere; needs target/debug/gantry built first.
+# and attacks it. Run from anywhere; needs target/debug/trunnion built first.
 set -u
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-G="$REPO/target/debug/gantry"
+G="$REPO/target/debug/trunnion"
 S="$(mktemp -d /tmp/gantry-proof01.XXXXXX)"
 LED="$S/ledger"
 OFF="$S/offline"

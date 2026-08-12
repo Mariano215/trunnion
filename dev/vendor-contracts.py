@@ -6,7 +6,7 @@ words for a requirement and its check, because a paraphrased requirement is how
 a check ends up testing something adjacent. Those words live in harness-kit and
 this binary ships without it, so the text has to be in the tree.
 
-Why JSON and not the YAML. gantry has no YAML parser and is not getting one:
+Why JSON and not the YAML. trunnion has no YAML parser and is not getting one:
 the obvious crate was archived by its author, and an unmaintained parser in a
 tool that reads other people's repositories is the supply chain this project
 refuses. serde_json is already here. The conversion happens once, on a
@@ -17,9 +17,9 @@ carried: the brief does not use them, and a field vendored but unread is a
 field that rots without anything noticing. `anti_pattern` is carried, because
 the brief has a section that quotes it.
 
-What this must never become. contracts.yaml:33 says gantry does not read that
+What this must never become. contracts.yaml:33 says trunnion does not read that
 file and must not, which is the line keeping scoring and prescription apart:
-harness-kit refuses to infer a level, gantry refuses to prescribe. The vendored
+harness-kit refuses to infer a level, trunnion refuses to prescribe. The vendored
 copy is quoted by the remediation brief and is read by nothing that produces a
 number. tests/invariants.rs enforces that, because a rule of this kind kept by
 intention is worth nothing.
@@ -72,12 +72,12 @@ def main() -> int:
     out = {
         "_source": (
             f"harness-kit contracts {doc['contracts_version']}, "
-            "vendored from contracts.yaml by gantry's dev/vendor-contracts.py"
+            "vendored from contracts.yaml by trunnion's dev/vendor-contracts.py"
         ),
         "_note": (
             "Quoted by the remediation brief so a requirement reaches the reader "
             "in the words that defined it. Read by nothing that produces a score: "
-            "harness-kit refuses to infer a level and gantry refuses to prescribe, "
+            "harness-kit refuses to infer a level and trunnion refuses to prescribe, "
             "and tests/invariants.rs is what keeps that true."
         ),
         "contracts_version": doc["contracts_version"],

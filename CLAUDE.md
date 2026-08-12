@@ -1,4 +1,4 @@
-# Gantry
+# Trunnion
 
 An LLM-agnostic control plane for agentic engineering. Implements the twelve
 harness primitives as running services. Ships as a container. Scores itself.
@@ -16,7 +16,7 @@ file, not a standard.
 
 A rule with no enforcement yet carries the unenforced marker followed by the
 check id that would close it, both on one line. The marker is a work item, and
-`gantry scan` on this repo reports every one it finds. This paragraph names no
+`trunnion scan` on this repo reports every one it finds. This paragraph names no
 marker of its own, because a definition that quoted the token would be
 indistinguishable from a use and the count would be wrong by one.
 
@@ -38,9 +38,9 @@ indistinguishable from a use and the count would be wrong by one.
   never the command string, an event or a Fault; a handle a capability does
   not declare is refused. Exercised by `tests/secrets.rs` and
   `tests/sandbox.rs`. The scanner `ci/secret-in-prompt` named is
-  `gantry ledger scan-secrets` since the post-nine gap work: it greps every
+  `trunnion ledger scan-secrets` since the post-nine gap work: it greps every
   stored byte (events, heads, payloads) for the values of the
-  GANTRY_HANDLE_* environment, names the handle and file on a hit and never
+  TRUNNION_HANDLE_* environment, names the handle and file on a hit and never
   echoes the value. Exercised by `tests/ledger.rs`
   (`a_secret_value_on_the_ledger_is_found_and_never_echoed`)
 - **No network in tests.** The full suite runs with an empty network
@@ -68,7 +68,7 @@ indistinguishable from a use and the count would be wrong by one.
   (`docs/proof/02.md` attack 5). Since the post-nine gap work the running
   permission mode is recorded too: `authority.permission_mode` carries the
   observed mode (from CLAUDE_PERMISSION_MODE, set by the hook or wrapper
-  invoking gantry), compared against the tracked
+  invoking trunnion), compared against the tracked
   `permissions.defaultMode`; a mismatch lands in `authority.diverged` as
   `host_permissions.permission_mode`, and no signal is written as
   `unobserved`, never guessed. — enforced by
@@ -77,14 +77,14 @@ indistinguishable from a use and the count would be wrong by one.
   the variable is set automatically: `.claude/hooks/permission-mode.sh` is a
   PreToolUse hook, wired in `.claude/settings.json`, that reads the real
   `permission_mode` Claude Code puts on its own hook input and injects it as
-  `CLAUDE_PERMISSION_MODE` into any Bash command that invokes gantry,
+  `CLAUDE_PERMISSION_MODE` into any Bash command that invokes trunnion,
   leaving every other command untouched. Enforced by `ci/run.sh`
   (`ci/permission-mode-hook`, which feeds the hook fixture input and checks
   the rewrite and the propagation) and `docs/proof/12.md`
 - **A denial names its rule.** Every denied call resolves to a rule id in
   `docs/POLICY-SCHEMA.md`, so a denial short-circuited by the host permission
   list is still explicable afterwards. — enforced since slice 03 by the
-  broker (every decision carries a rule id) and by `gantry policy check`
+  broker (every decision carries a rule id) and by `trunnion policy check`
   plus `tests/broker.rs` (`tracked_policy_has_host_parity`), which replay
   each host deny entry through the policy
 - **No rule is unreachable.** A deny rule shadowed by an earlier broader allow
@@ -104,7 +104,7 @@ indistinguishable from a use and the count would be wrong by one.
   `config/skill-keys.json` is the tracked trust root, loaded by
   `KeyRegistry::load` (`src/skills.rs`), which refuses the whole registry on
   a corrupt key or an entry with no owner rather than silently trusting
-  fewer keys. `gantry skill resolve` reads it by default; a key passed on
+  fewer keys. `trunnion skill resolve` reads it by default; a key passed on
   the command line is added for one resolution, never a replacement. —
   enforced by `src/skills.rs` tests
   (`a_registry_with_a_corrupt_key_or_anonymous_entry_refuses_whole`,
@@ -146,10 +146,10 @@ indistinguishable from a use and the count would be wrong by one.
   (`Sensor::liveness_failure` runs every control before any trusted verdict,
   and `Sensor::validate` refuses a sensor with no negative control);
   exercised by `tests/sensor.rs` and `docs/proof/05.md`. The summary
-  `gantry sensor live` prints comes from that same function rather than from
+  `trunnion sensor live` prints comes from that same function rather than from
   a fixed string, so a sensor broken by a positive control is not reported as
   having passed a negative one. Liveness is also swept on a schedule since
-  the post-nine gap work: `gantry sensor live` runs every tracked sensor's
+  the post-nine gap work: `trunnion sensor live` runs every tracked sensor's
   controls standalone, `ci/run.sh` runs the sweep on every push, and the
   workflow adds a weekly cron so a sensor that rots between pushes is caught
   by the schedule, not by the next unlucky verdict. The positive controls are
@@ -172,7 +172,7 @@ indistinguishable from a use and the count would be wrong by one.
   the same document so the sensor can be seen tripping. A secret scanner reads
   all of them as leaks, which is why `.gitleaks.toml` disables the stock
   `private-key` rule and `.github/secret_scanning.yml` names the paths. Neither
-  stands alone. `gantry scan-keys <dir>` (`scan_keys` in `src/scan.rs`, same
+  stands alone. `trunnion scan-keys <dir>` (`scan_keys` in `src/scan.rs`, same
   read-only `RepoRead` the twelve-primitive scan goes through) reads every file
   in the tree rather than only the exempted ones and fails on a block whose
   base64 body decodes to 48 bytes or more, that being a PKCS8 ed25519 key and
@@ -217,7 +217,7 @@ indistinguishable from a use and the count would be wrong by one.
   load, or a seed that produces a different key id than declared, refuses the
   run rather than appending unsigned; a profile that declares no key appends
   unsigned, which verify reports as a count. The tracked laptop profile
-  declares one, so `gantry ledger verify` on a real run reports every event
+  declares one, so `trunnion ledger verify` on a real run reports every event
   verified rather than counted. — enforced by `src/runlog.rs`
   (`ActorSigner::declared`), `tests/broker.rs`
   (`a_real_run_is_signed_and_verifies_against_the_tracked_registry`,
@@ -233,7 +233,7 @@ indistinguishable from a use and the count would be wrong by one.
   refuses any non-laptop profile that declares such a key, before the run
   appends anything. — enforced by `src/runlog.rs` and `tests/broker.rs`
   (`a_non_laptop_profile_declaring_a_published_seed_refuses_to_start`). A
-  harness generates its own key rather than inheriting one: `gantry template
+  harness generates its own key rather than inheriting one: `trunnion template
   init` writes a fresh 32-byte seed at `config/actor-key.seed` (mode 0600),
   registers the public half in a `config/actor-keys.json` the template does
   not carry, with an owner naming the harness and `seed_published` false, and
@@ -251,7 +251,7 @@ indistinguishable from a use and the count would be wrong by one.
 
 - **A hold is resolved by an approval on the record, and the decision keeps
   saying hold.** A policy hold is not a failure, it is a call waiting for a
-  human. `gantry approve` writes an `approval` naming the call hash, the rule
+  human. `trunnion approve` writes an `approval` naming the call hash, the rule
   and the approver; the broker releases the retry and writes an
   `approval.use`. The `policy.decision` still reads `hold`, because that is
   what the policy computed, and an allow written there would say the policy
@@ -259,7 +259,7 @@ indistinguishable from a use and the count would be wrong by one.
   hash rather than the request id (the retry is a new run with a new request
   id), releases only a call whose rule it names, and is re-checked against
   the trust budget at consumption, because a ledger file is writable by more
-  than the one command. An approval never reverses a denial: `gantry approve`
+  than the one command. An approval never reverses a denial: `trunnion approve`
   refuses any request that did not resolve to `hold`, and the broker consults
   grants only on the hold branch. A refusal is recorded as
   `verdict: deny`, so "nobody looked" and "somebody said no" are different
@@ -287,7 +287,7 @@ indistinguishable from a use and the count would be wrong by one.
   enforced by `ci/console-render.sh`, run by `ci/run.sh` on every push; proved
   able to fail by renaming `fired`, `earned_rung`, `_attestation_state` and
   `_attestation_trust` in turn, and recorded in `docs/proof/11.md`
-- **A console with no ledger is not a console with a broken one.** `gantry
+- **A console with no ledger is not a console with a broken one.** `trunnion
   console` with no ledger directory answers the workspace routes and 404s
   every ledger route, and the front end reads that 404 as "there is no log
   here" rather than as "the log here is damaged". The second takes the
@@ -302,13 +302,13 @@ indistinguishable from a use and the count would be wrong by one.
   is never presentable as a 5. — enforced by `ci/console-render.sh`, which
   registers this repository into a throwaway registry, serves it with no
   ledger, and asserts the rail, the floor count, an evidence sentence, the
-  first queued brief and its gap against values read from `gantry project
-  scan` and `gantry project remediate` at check time; proved able to fail by
+  first queued brief and its gap against values read from `trunnion project
+  scan` and `trunnion project remediate` at check time; proved able to fail by
   renaming the rail's label and by disabling the 404 branch in
   `recordVerifyError`, which takes every workspace assertion with it.
   Recorded in `docs/proof/22.md`
 - **A declared value is observed or the gap is reported, never assumed.**
-  `gantry drift` walks `profile_requirements`, reads each `observed_by`
+  `trunnion drift` walks `profile_requirements`, reads each `observed_by`
   source from the running system and appends one `drift.report` per field on
   every run, matches included, so a silent scan and a stopped scan are
   different states on the ledger. A source this build cannot read reports
@@ -348,7 +348,7 @@ indistinguishable from a use and the count would be wrong by one.
   naming one backend. The field held `seatbelt` and the comparison is string
   equality, so a Linux host confining a run with Landlock ABI v4 recorded a
   shortfall it did not have, a `regulated` profile under `refuse` could not
-  start there at all, and `gantry drift` called it a divergence. Landlock
+  start there at all, and `trunnion drift` called it a divergence. Landlock
   added TCP restrictions in v4, so `landlock-v1` through `-v3` provide the
   mechanism and not the property and are still short, and a host with no
   backend provides `none` and is short too. A profile that means one
@@ -387,7 +387,7 @@ indistinguishable from a use and the count would be wrong by one.
   `an_unrecognised_stance_refuses_rather_than_degrading`) and `ci/run.sh`
   (`ci/profile-unavailable-refuses`), which builds a regulated harness on every
   push and fails if it starts; recorded in `docs/proof/17.md`
-- **A score names a path, or it names the paths it looked in.** `gantry scan
+- **A score names a path, or it names the paths it looked in.** `trunnion scan
   <repo-dir>` reads a repository's harness surface and scores the twelve
   primitives from what is on disk. Every number carries evidence: the artifact
   found and the check file that names it, or an explicit list of every path
@@ -414,25 +414,25 @@ indistinguishable from a use and the count would be wrong by one.
   `scanning_this_repository_stays_under_its_own_ceiling_and_reports_its_markers`);
   recorded in `docs/proof/16.md`
 - **A hole in the record is reported, and a rewrite is caught by a copy or not
-  at all.** `gantry ledger verify` reports every gap in a run's `seq`, naming
+  at all.** `trunnion ledger verify` reports every gap in a run's `seq`, naming
   the run, the last seq before the hole, the next one after it and how many are
   missing. A gap is a finding and never a fault: a removed entry already faults
   on the chain or a signed head, so a hole in `seq` is an event that was never
   appended, and the log cannot tell a harness killed mid-run from a producer
   that numbered an event it failed to write. Calling that an alteration would
   assert a distinction the record cannot make. Since slice 18 a consistency
-  proof is also checkable by whoever is handed one: `gantry ledger consistency`
+  proof is also checkable by whoever is handed one: `trunnion ledger consistency`
   emits both signed heads with the proof between them, because a bare hash
-  array is not checkable by anybody, and `gantry ledger verify-consistency
+  array is not checkable by anybody, and `trunnion ledger verify-consistency
   <bundle.json> <pubkey-file>` checks it offline the way `verify-inclusion`
   does, refusing an old head no key signed before any Merkle arithmetic.
   Neither closes the hole a transparency log has with no head gossip, which is
-  why `gantry ledger anchor` writes the current signed head outside the ledger
+  why `trunnion ledger anchor` writes the current signed head outside the ledger
   directory and records a `ledger.anchor` naming the destination, the tree
   size, the head and the time, with `proves` and `does_not_prove` in the
   payload; the destination is refused inside the ledger and refused when a file
   already sits there, because overwriting the older copy destroys the only
-  thing an anchor is. `gantry ledger verify-anchor` folds the anchored root
+  thing an anchor is. `trunnion ledger verify-anchor` folds the anchored root
   through a fresh consistency proof, so a writer who drops its own tail and
   re-signs is caught by a log that still verifies clean, and only by a party
   holding the copy. Enforced by `src/ledger.rs` (`seq_gaps`, `Ledger::anchor`,
@@ -484,7 +484,7 @@ indistinguishable from a use and the count would be wrong by one.
 - **A held call is visible, and the console still writes nothing.** Every call
   whose `policy.decision` resolved to `hold` appears in the operator console's
   inbox with the rule that held it, the message it carries, the capability, the
-  call, when it was last held, who has answered and the exact `gantry approve`
+  call, when it was last held, who has answered and the exact `trunnion approve`
   command that resolves it. A hold nobody can see makes the approval path
   complete and useless, which is what `docs/proof/14.md` recorded as its first
   remaining guide. The row's state is the broker's own predicate re-derived,
@@ -492,7 +492,7 @@ indistinguishable from a use and the count would be wrong by one.
   budget permits, that no `approval.use` has spent, so a grant the broker would
   ignore never renders as one that releases the call, and "nobody looked" and
   "somebody said no" are different rows with different words. The console
-  prints the command and never runs it: `gantry approve` records a named human,
+  prints the command and never runs it: `trunnion approve` records a named human,
   and a button on a loopback port with no identity story would put that name on
   the ledger because a socket was reachable. Where the profile permits any
   approver the command carries a placeholder rather than a name the console
@@ -569,7 +569,7 @@ indistinguishable from a use and the count would be wrong by one.
   `request_id` and `call_hash`, so a hold and the approval that answered it
   join on the record rather than on position in the log. Both readers were
   wrong before: the console reported the hold against the wrong call, and
-  `gantry approve` refused the call the record held while writing a grant bound
+  `trunnion approve` refused the call the record held while writing a grant bound
   to a call nothing held, which the broker would then have released. A hole in
   a run's seq also reaches an operator surface for the first time, drawn apart
   from a fault because the record cannot tell a killed harness from an event a
@@ -584,15 +584,15 @@ indistinguishable from a use and the count would be wrong by one.
   by breaking the thing it names; four of them did not, and `docs/proof/21.md`
   records what they were and what replaced them
 
-- **The contracts are quoted, never scored against.** `gantry project
+- **The contracts are quoted, never scored against.** `trunnion project
   remediate` prints the requirement, the artifact and the acceptance check for
   a gap in harness-kit's own words, because a paraphrased requirement is how a
   check ends up testing something adjacent. Those words are vendored into
   `config/contracts.json` by `dev/vendor-contracts.py` and compiled in, since a
   brief has to print on a machine that has never seen harness-kit.
-  `contracts.yaml` says gantry does not read it and must not, and the reason is
+  `contracts.yaml` says trunnion does not read it and must not, and the reason is
   the split the two projects are built on: harness-kit refuses to infer a level
-  and gantry refuses to prescribe one. That survives here only while nothing
+  and trunnion refuses to prescribe one. That survives here only while nothing
   producing a number reads the contracts, which is one import away and
   invisible in review, so it is a check rather than an intention: `src/scan.rs`
   and `src/scorer.rs` may not name `remediate`, `contracts.json` or

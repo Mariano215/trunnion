@@ -5,7 +5,7 @@
 # Run from the repository root after cargo build. No network needed; the
 # sensor is computational.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof06.XXXXXX)
 L=$WORK/ledger
 CAP=repo.write

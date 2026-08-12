@@ -4,7 +4,7 @@
 # a loose tool definition is refused registration. Run from the repository
 # root after cargo build. No network is needed anywhere in this proof.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof03.XXXXXX)
 L=$WORK/ledger
 echo "workdir: $WORK"

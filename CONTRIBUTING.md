@@ -59,13 +59,13 @@ and pull requests moving them here will be declined:
 
 - **What a maturity level means** is the
   [Agent Harness Maturity Specification](https://github.com/Mariano215/agent-harness-maturity).
-  Gantry measures against it and does not define it.
+  Trunnion measures against it and does not define it.
 - **What to build to reach a level** is
-  [harness-kit](https://github.com/Mariano215/harness-kit). Gantry quotes those
+  [harness-kit](https://github.com/Mariano215/harness-kit). Trunnion quotes those
   contracts in a remediation brief and never scores against them, which
   `tests/invariants.rs` enforces.
 
-That separation is the point. Gantry refuses to be prescriptive, harness-kit
+That separation is the point. Trunnion refuses to be prescriptive, harness-kit
 refuses to infer a level, and the specification refuses to ship code.
 
 ## Reporting a vulnerability

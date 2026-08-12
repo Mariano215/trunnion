@@ -1,4 +1,4 @@
-# Gantry — concept and architecture decisions
+# Trunnion — concept and architecture decisions
 
 Companion to `Agentic Platform Concept.dc.html`, which is the same content as
 a designed document. This is the version a coding agent should read.
@@ -11,7 +11,7 @@ can prove it to someone who was not in the room — is still hand-assembled at
 every company that needs it.
 
 The twelve-primitive rubric is a measuring instrument pointed at someone else's
-system. Gantry is the same rubric pointed inward and satisfied by construction.
+system. Trunnion is the same rubric pointed inward and satisfied by construction.
 That inversion is the product.
 
 The rubric's arithmetic is why this is a product and not an article: the overall
@@ -177,7 +177,7 @@ compiles with the others."
 
 ## Still open
 
-- **Name collision.** Gantry is also a long-running Joomla template framework.
+- **Name collision.** Trunnion is also a long-running Joomla template framework.
   Check crates.io and npm before publishing a package name. Keel and Ratchet
   are the fallbacks.
 - **Audit crew scope.** The proving workload needs a boundary or it becomes a

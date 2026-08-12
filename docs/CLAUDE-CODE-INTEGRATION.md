@@ -2,7 +2,7 @@
 
 This changes the shape of v0. A coding agent with a hook system, an MCP client,
 a permission model and an instruction file already exposes an extension point
-for most of the twelve. Gantry does not need to be an agent runtime to deliver
+for most of the twelve. Trunnion does not need to be an agent runtime to deliver
 the `laptop` profile — it needs to sit in those sockets and write to the
 ledger. Weeks, not months, and the user changes no tools.
 
@@ -11,12 +11,12 @@ surfaces move. The mapping below is the shape, not the API.
 
 ## Socket map
 
-| Socket | Primitives | What Gantry puts there |
+| Socket | Primitives | What Trunnion puts there |
 |---|---|---|
 | `CLAUDE.md` / `AGENTS.md` | 01 | Generated from a version-controlled instruction pack, with the checker that fails the build when a rule it declares is violated in the diff. The file stops being hand-edited prose. |
 | Pre-tool hook | 04 · 07 · 12 | The policy decision — allow, deny, hold for approval — against declared authority. Decision, rule that fired and identity in force land in the ledger before the call proceeds. |
 | Post-tool hook | 10 · 11 | Sensor dispatch. Fast computational sensors run here; verdicts return as fix-naming messages the agent acts on, not a wall of failing output. |
-| MCP servers | 04 · 05 | Gantry registers as one server proxying the rest, so every tool passes the schema registry and credential broker. Existing MCP tools work unmodified — the point of not inventing a protocol. |
+| MCP servers | 04 · 05 | Trunnion registers as one server proxying the rest, so every tool passes the schema registry and credential broker. Existing MCP tools work unmodified — the point of not inventing a protocol. |
 | Session start / end hooks | 06 · 11 | Open and seal the run. Restore plan and checkpoint on start; write the signed run summary on end, so a session has a beginning and an end an auditor can point at. |
 | Skills / slash commands | 09 | Signed skill packages installed into the directory the agent already reads, with the resolver that refuses invalid metadata instead of falling back to a title. |
 | Subagent definitions | 08 | Roles with narrowed tools and a per-role policy, so a delegated agent inherits less authority than its parent rather than the same. |
@@ -42,13 +42,13 @@ argue with the score.
 
 | Command | State | What it does |
 |---|---|---|
-| `gantry scan <repo-dir>` | Built, slice 16 | Reads what is already there: instruction files, hooks, test gates, declared permissions, MCP config, CI. Scores twelve primitives with a file path or an explicit "looked in X and Y, found nothing" behind every number, and lists the `[UNENFORCED]` markers the repository's own rule file carries. Read-only, offline, no account. See `docs/proof/16.md`. |
-| `gantry scan-keys <dir>` | Built | Reads every file under a directory, measures the base64 body of every PEM private key block, and exits non-zero on one reaching 48 bytes, a PKCS8 ed25519 key being the smallest real private key there is. It exists because a harness carries private key headers on purpose: a sensor that catches committed keys has to hold one per branch as a negative control, so the harness ships a scanner exemption for those paths and this is the check that stands behind it. It walks the whole tree rather than the exempted paths, so widening the exemption cannot widen the hole. Read-only, offline. |
-| `gantry apply` | Not built | Would scaffold missing layers as a reviewable diff, never a silent write, ranked by the rubric's remediation order. No subcommand exists. |
-| `gantry up` | Not built | Would bring up ledger, broker and sandbox on the `laptop` profile, so the scan stops being a snapshot and becomes live telemetry. No subcommand exists. The pieces run today as separate commands (`gantry broker`, `gantry console`, `gantry score`); nothing composes them. |
-| `gantry ledger verify` | Built, slice 01 | Checks the ledger offline. `gantry score <ledger-dir>` re-runs the published scoring rules against it. Anyone can run both against an exported ledger they were handed. |
+| `trunnion scan <repo-dir>` | Built, slice 16 | Reads what is already there: instruction files, hooks, test gates, declared permissions, MCP config, CI. Scores twelve primitives with a file path or an explicit "looked in X and Y, found nothing" behind every number, and lists the `[UNENFORCED]` markers the repository's own rule file carries. Read-only, offline, no account. See `docs/proof/16.md`. |
+| `trunnion scan-keys <dir>` | Built | Reads every file under a directory, measures the base64 body of every PEM private key block, and exits non-zero on one reaching 48 bytes, a PKCS8 ed25519 key being the smallest real private key there is. It exists because a harness carries private key headers on purpose: a sensor that catches committed keys has to hold one per branch as a negative control, so the harness ships a scanner exemption for those paths and this is the check that stands behind it. It walks the whole tree rather than the exempted paths, so widening the exemption cannot widen the hole. Read-only, offline. |
+| `trunnion apply` | Not built | Would scaffold missing layers as a reviewable diff, never a silent write, ranked by the rubric's remediation order. No subcommand exists. |
+| `trunnion up` | Not built | Would bring up ledger, broker and sandbox on the `laptop` profile, so the scan stops being a snapshot and becomes live telemetry. No subcommand exists. The pieces run today as separate commands (`trunnion broker`, `trunnion console`, `trunnion score`); nothing composes them. |
+| `trunnion ledger verify` | Built, slice 01 | Checks the ledger offline. `trunnion score <ledger-dir>` re-runs the published scoring rules against it. Anyone can run both against an exported ledger they were handed. |
 
-`gantry scan` is the growth engine, not `gantry up`. It was built first.
+`trunnion scan` is the growth engine, not `trunnion up`. It was built first.
 
 ### What the scan's number means, and what it does not
 
@@ -60,7 +60,7 @@ read; no 4 or 5, because `docs/PRIMITIVES.md` anchor 4 is enforcement by the
 system rather than by discipline, and a file only says a check is wired; and no
 N/A, because a tree does not show which primitives the workload exercises.
 
-`gantry score` is the other number and it reads a ledger. Every predicate in
+`trunnion score` is the other number and it reads a ledger. Every predicate in
 `config/scoring.json` is a statement about events that happened, which is why
 it is the only one of the two that can award 4. The two are not averaged. The
 static scan under-reads a running system, since a recorder is runtime state and
@@ -69,7 +69,7 @@ dead one, since a check file naming a check says the check is wired and not
 that it works. Where they disagree, the telemetry number measured something
 running.
 
-## Build Gantry under Gantry
+## Build Trunnion under Trunnion
 
 Point it at its own repo the week slice 01 can run at all. Every proof document
 then gets written from a real ledger instead of assembled by hand, and the

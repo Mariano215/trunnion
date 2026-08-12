@@ -3,16 +3,16 @@
 //! real one: the run is dropped without sealing, exactly as a killed process
 //! leaves it.
 
-use gantry::durable::{seam, DurableRun};
-use gantry::gateway::Pinning;
-use gantry::ledger::{self, Ledger};
-use gantry::policy::Policy;
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
+use trunnion::durable::{seam, DurableRun};
+use trunnion::gateway::Pinning;
+use trunnion::ledger::{self, Ledger};
+use trunnion::policy::Policy;
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-dur-it-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-dur-it-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d

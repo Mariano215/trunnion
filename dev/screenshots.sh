@@ -16,20 +16,20 @@
 # Run from the repository root, after cargo build.
 set -e
 
-CHROME=${GANTRY_CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}
-BIN=target/debug/gantry
+CHROME=${TRUNNION_CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}
+BIN=target/debug/trunnion
 OUT=docs/assets
 
 if [ ! -x "$CHROME" ]; then
-  echo "no headless browser at \"$CHROME\". Fix: install Google Chrome, or set GANTRY_CHROME to a Chromium binary that supports --headless --screenshot"
+  echo "no headless browser at \"$CHROME\". Fix: install Google Chrome, or set TRUNNION_CHROME to a Chromium binary that supports --headless --screenshot"
   exit 1
 fi
 if [ ! -x "$BIN" ]; then
-  echo "no gantry binary at $BIN. Fix: run cargo build before dev/screenshots.sh"
+  echo "no trunnion binary at $BIN. Fix: run cargo build before dev/screenshots.sh"
   exit 1
 fi
 
-WORK=$(mktemp -d /tmp/gantry-shots.XXXXXX)
+WORK=$(mktemp -d /tmp/trunnion-shots.XXXXXX)
 L=$WORK/ledger
 TAMPERED=$WORK/tampered
 WS_HOME=$WORK/home
@@ -66,7 +66,7 @@ fi
 
 # The workspace needs a registry. This repository is the project, and the
 # registry is thrown away with $WORK so the operator's own is untouched.
-GANTRY_HOME=$WS_HOME $BIN project add . --id gantry >/dev/null
+TRUNNION_HOME=$WS_HOME $BIN project add . --id trunnion >/dev/null
 
 origin_of() {
   local log=$1 i origin=
@@ -88,7 +88,7 @@ CLEAN=$(origin_of $WORK/clean.log)
 $BIN console $TAMPERED 127.0.0.1:0 > $WORK/broken.log 2>&1 &
 BROKEN=$!
 BROKEN_ORIGIN=$(origin_of $WORK/broken.log)
-GANTRY_HOME=$WS_HOME $BIN console > $WORK/ws.log 2>&1 &
+TRUNNION_HOME=$WS_HOME $BIN console > $WORK/ws.log 2>&1 &
 WS=$!
 WS_ORIGIN=$(origin_of $WORK/ws.log)
 

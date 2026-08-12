@@ -1,12 +1,12 @@
-use gantry::gateway::{msg, GatewayRun, Pinning, Provider};
-use gantry::ledger::{self, Ledger};
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
+use trunnion::gateway::{msg, GatewayRun, Pinning, Provider};
+use trunnion::ledger::{self, Ledger};
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-gw-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-gw-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
@@ -76,7 +76,7 @@ fn settings_hash_pins_the_settings_file() {
 
     let lines = fs::read_to_string(led.join("events.jsonl")).unwrap();
     let open: serde_json::Value = serde_json::from_str(lines.lines().next().unwrap()).unwrap();
-    let expected = gantry::gateway::file_hash(&settings_path).unwrap();
+    let expected = trunnion::gateway::file_hash(&settings_path).unwrap();
     assert_eq!(open["authority"]["settings_hash"], expected);
 }
 
@@ -217,11 +217,11 @@ fn missing_key_faults_before_any_request() {
     let p = provider(
         "http://127.0.0.1:1/v1",
         "stub",
-        Some("GANTRY_TEST_UNSET_KEY"),
+        Some("TRUNNION_TEST_UNSET_KEY"),
     );
     let fault = run.call(&p, &[msg("user", "hello")]).unwrap_err();
     assert!(
-        fault.fix.contains("GANTRY_TEST_UNSET_KEY"),
+        fault.fix.contains("TRUNNION_TEST_UNSET_KEY"),
         "fix names the var: {fault}"
     );
 
@@ -242,16 +242,16 @@ fn provider_error_never_leaks_the_key_onto_the_ledger() {
     let dir = workdir("call-key-leak");
     let pin = pinning(&dir);
     let sentinel = "sk-test-sentinel-9f3a1c";
-    std::env::set_var("GANTRY_TEST_SENTINEL_KEY", sentinel);
+    std::env::set_var("TRUNNION_TEST_SENTINEL_KEY", sentinel);
     let body = format!(r#"{{"error":"rejected header Authorization: Bearer {sentinel}"}}"#);
     let (base, srv) = stub(500, &body);
     let led = dir.join("ledger");
     let mut run = GatewayRun::open(Ledger::init(&led).unwrap(), "smoke", &pin).unwrap();
-    let p = provider(&base, "stub", Some("GANTRY_TEST_SENTINEL_KEY"));
+    let p = provider(&base, "stub", Some("TRUNNION_TEST_SENTINEL_KEY"));
     let fault = run.call(&p, &[msg("user", "hello")]).unwrap_err();
     run.seal("complete").unwrap();
     srv.join().unwrap();
-    std::env::remove_var("GANTRY_TEST_SENTINEL_KEY");
+    std::env::remove_var("TRUNNION_TEST_SENTINEL_KEY");
 
     assert!(
         !fault.cause.contains(sentinel),
@@ -302,7 +302,7 @@ fn http_500_is_a_ledger_event() {
         .unwrap()
         .starts_with("sha256:"));
     assert!(!subject["error"]["fix"].as_str().unwrap().is_empty());
-    assert!(gantry::ledger::verify(&led).unwrap().ok());
+    assert!(trunnion::ledger::verify(&led).unwrap().ok());
 
     // Error-path and ok-path subjects expose the same top-level keys.
     let (ok_base, ok_srv) = stub(200, OK_BODY);
@@ -375,12 +375,12 @@ fn key_bytes_never_reach_the_ledger() {
     let dir = workdir("keyleak");
     let pin = pinning(&dir);
     let canary = "sk-canary-8c2f1a9d7e";
-    std::env::set_var("GANTRY_TEST_CANARY_KEY", canary);
+    std::env::set_var("TRUNNION_TEST_CANARY_KEY", canary);
     let (base, srv) = stub(200, OK_BODY);
     let led = dir.join("ledger");
     let mut run = GatewayRun::open(Ledger::init(&led).unwrap(), "smoke", &pin).unwrap();
     run.call(
-        &provider(&base, "stub", Some("GANTRY_TEST_CANARY_KEY")),
+        &provider(&base, "stub", Some("TRUNNION_TEST_CANARY_KEY")),
         &[msg("user", "hello")],
     )
     .unwrap();
@@ -390,7 +390,7 @@ fn key_bytes_never_reach_the_ledger() {
         req.contains(&format!("Bearer {canary}")),
         "wire contains Bearer token"
     );
-    std::env::remove_var("GANTRY_TEST_CANARY_KEY");
+    std::env::remove_var("TRUNNION_TEST_CANARY_KEY");
 
     let mut files = Vec::new();
     files_under(&led, &mut files);
@@ -423,7 +423,8 @@ fn the_gateway_signs_under_the_key_the_pinned_profile_declares() {
     let run = GatewayRun::open(Ledger::init(&led).unwrap(), "smoke", &pin).unwrap();
     run.seal("complete").unwrap();
 
-    let registry = gantry::skills::KeyRegistry::load(&repo.join("config/actor-keys.json")).unwrap();
+    let registry =
+        trunnion::skills::KeyRegistry::load(&repo.join("config/actor-keys.json")).unwrap();
     let report = ledger::verify_with_actor_keys(&led, &registry.key_hexes()).unwrap();
     assert!(report.ok(), "faults: {:?}", report.faults);
     assert_eq!(report.attestations_verified, 2, "run.open and run.seal");
@@ -432,7 +433,7 @@ fn the_gateway_signs_under_the_key_the_pinned_profile_declares() {
     // The environment source wins where it is set, and a seed under it that
     // is not the declared key refuses the run rather than signing as an
     // actor the registry never heard of.
-    std::env::set_var("GANTRY_ACTOR_SEED", "11".repeat(32));
+    std::env::set_var("TRUNNION_ACTOR_SEED", "11".repeat(32));
     let fault = GatewayRun::open(
         Ledger::init(&dir.join("ledger-wrong-key")).unwrap(),
         "smoke",
@@ -440,7 +441,7 @@ fn the_gateway_signs_under_the_key_the_pinned_profile_declares() {
     )
     .map(|_| ())
     .unwrap_err();
-    std::env::remove_var("GANTRY_ACTOR_SEED");
+    std::env::remove_var("TRUNNION_ACTOR_SEED");
     assert!(fault.cause.contains("but the seed produces"), "{fault}");
     assert!(fault.fix.contains("config/actor-keys.json"), "{fault}");
 }
@@ -454,7 +455,7 @@ fn base_url_with_credential_is_rejected() {
         r#"[{"name":"bad","base_url":"https://user:pass@example.com/v1","model":"m","window_budget":1000}]"#,
     )
     .unwrap();
-    let fault = gantry::gateway::load_providers(&path).unwrap_err();
+    let fault = trunnion::gateway::load_providers(&path).unwrap_err();
     assert!(fault.cause.contains("bad"), "names the provider: {fault}");
     assert!(
         fault.fix.contains("key_env"),
@@ -508,7 +509,7 @@ fn the_observed_mode_reaches_the_event_from_the_pinning_and_not_the_environment(
 
 #[test]
 fn permission_mode_divergence_is_computed_never_guessed() {
-    use gantry::gateway::permission_mode_check;
+    use trunnion::gateway::permission_mode_check;
     let declared_ask = r#"{"permissions": {"defaultMode": "acceptEdits"}}"#;
 
     // Observed and matching: recorded, no divergence.

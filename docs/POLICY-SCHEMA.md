@@ -17,7 +17,7 @@ each reflected in the computed `policy_version`:
   that does not match the content refuses to load.
 - The load-time checks promised below are running: a shadowed rule, a post
   gate without a rollback handle, and a deny or hold rule without a message
-  each refuse to load. Host parity runs in `gantry policy check`. The shadow
+  each refuse to load. Host parity runs in `trunnion policy check`. The shadow
   check is conservative: it only flags coverage it can prove (an absent
   constraint, or pattern sets where each later pattern is matched by an
   earlier one), so it cannot false-positive.
@@ -141,7 +141,7 @@ trust_budget:
     approval_required: false
 ```
 
-Two notes on `profile_requirements`, both since slice 15, when `gantry drift`
+Two notes on `profile_requirements`, both since slice 15, when `trunnion drift`
 started reading these fields instead of describing them. The shape above shows
 `egress.observed_by: netns.route_table`; `config/policy.json` names
 `sandbox.egress_allow`. Nothing reads either one, and the Drift section below
@@ -238,7 +238,7 @@ The output maps one to one onto the `subject` of a `policy.decision` event.
   "request": {
     "tool": "Bash",
     "args_hash": "sha256:b3e46a297ee98853160b908303b1714c6af04336d3f82dbf4d4aeae7dd4f12d8",
-    "target": "https://crates.io/api/v1/crates/gantry"
+    "target": "https://crates.io/api/v1/crates/trunnion"
   },
   "identity": { "id": "user:mariano@local", "source": "local" },
   "message": "Egress is denied on the laptop profile, whose allowlist is empty. Add the host to profile_requirements.egress.allow and re-run, or perform this lookup outside the run and paste the result."
@@ -265,7 +265,7 @@ unbuilt.
 |---|---|---|---|---|
 | `isolation.declared` | `per_run_confinement` | `per_run_confinement` | `per_run_confinement` | `Sandbox::per_run` (`src/sandbox.rs`) builds the profile and `run.open` records `active_backend` beside the declaration; `tests/sandbox.rs`, `tests/profiles.rs` |
 | `egress.allow` | `[]` | explicit list | explicit list | the same generated seatbelt profile: an entry becomes a `remote ip` allow and everything else, loopback included, is denied; `tests/sandbox.rs` |
-| `promotion.approver` | `any` | `any` | **`named`** | `TrustBudget::approver_ok` (`src/trust.rs`), consulted by `gantry approve` and by promotion in `Orchestrator::step`; `tests/broker.rs` |
+| `promotion.approver` | `any` | `any` | **`named`** | `TrustBudget::approver_ok` (`src/trust.rs`), consulted by `trunnion approve` and by promotion in `Orchestrator::step`; `tests/broker.rs` |
 | `on_unavailable` | `degrade` | `degrade` | **`refuse`** | `policy::availability_check` (`src/policy.rs`) at run open; `tests/profiles.rs`, `ci/run.sh` (`ci/profile-unavailable-refuses`) |
 | `attestation` key seed | published key permitted | held key only | held key only | `ActorSigner::declared` (`src/runlog.rs`); `tests/broker.rs` |
 
@@ -337,7 +337,7 @@ why it is mandatory.
 
 ## Drift
 
-`gantry drift <ledger-dir> <policy.json>` walks `profile_requirements`, reads
+`trunnion drift <ledger-dir> <policy.json>` walks `profile_requirements`, reads
 each `observed_by` source from the running system, and appends one
 `drift.report` per field. Every field reports every run, matches included, so
 silence is evidence rather than absence. Running it on a schedule is the
@@ -394,7 +394,7 @@ schedules the walk from inside the binary; CI is the schedule.
 
 ## Relationship to the host harness permission list
 
-Gantry is the decision point. The host harness permission list (for Claude
+Trunnion is the decision point. The host harness permission list (for Claude
 Code, `.claude/settings.json`) is a backstop, not the policy.
 
 This matters because of an observed failure, recorded in `docs/proof/00.md`: a
@@ -412,7 +412,7 @@ both places deliberately, and the duplication is checked.
   — enforced at load by `Policy::validate` since slice 03
 - `ci/policy-host-parity`: every host `deny` entry has a corresponding rule
   here, so a short-circuited denial is at least explicable after the fact.
-  — enforced by `gantry policy check` and `tests/broker.rs` since slice 03
+  — enforced by `trunnion policy check` and `tests/broker.rs` since slice 03
 - `ci/policy-rollback`: every capability whose rung and effect resolve to a
   `post` gate declares a `rollback` handle. — enforced at load by
   `Policy::validate` since slice 03

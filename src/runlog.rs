@@ -51,7 +51,7 @@ fn seed_is_published(seed_dir: &Path, key_id: &str) -> bool {
 impl ActorSigner {
     /// Resolves `profile_requirements.attestation`. `Ok(None)` means the
     /// profile declares no actor key and the run appends unsigned, which
-    /// `gantry ledger verify` reports as a count of zero attestations rather
+    /// `trunnion ledger verify` reports as a count of zero attestations rather
     /// than as a pass. Every other failure is a refusal: a profile that
     /// declares a key it cannot load must not start, because appending
     /// unsigned under a profile that says it signs is the silent degradation

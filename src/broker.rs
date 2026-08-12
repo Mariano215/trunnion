@@ -122,7 +122,7 @@ impl BrokerRun {
         let authority = pin.authority(&policy.profile, &policy_version)?;
         let actor = json!({
             "type": "agent",
-            "id": "agent:gantry-broker",
+            "id": "agent:trunnion-broker",
             "identity_source": "local",
             "rung": "assisted",
         });
@@ -157,8 +157,10 @@ impl BrokerRun {
             gateway::policy_dir(&pin.policy),
         )?;
         let core = RunCore::open(ledger, actor, authority).signed_by(signer);
-        let sandbox =
-            Sandbox::per_run(&crate::sandbox::unique_run_dir("gantry-run"), &egress_allow)?;
+        let sandbox = Sandbox::per_run(
+            &crate::sandbox::unique_run_dir("trunnion-run"),
+            &egress_allow,
+        )?;
         // Only handles some capability declares can hold a value at all.
         let declared_handles: Vec<String> = policy
             .capabilities
@@ -311,7 +313,7 @@ impl BrokerRun {
     /// The stable identity of a call, so an approval issued against one
     /// invocation can be found by the retry that follows it. A `request_id`
     /// cannot serve: it carries the run id and the sequence number, and every
-    /// `gantry broker call` opens a new run, so the retry of a held call
+    /// `trunnion broker call` opens a new run, so the retry of a held call
     /// never carries the id the approver saw. The tool and its arguments do
     /// not move, so their canonical hash is what a grant names.
     pub fn call_hash(tool: &str, args: &Value) -> Result<String, Fault> {
@@ -320,7 +322,7 @@ impl BrokerRun {
 
     /// The grant that can release this held call, if the ledger holds one.
     ///
-    /// Every check here is repeated from `gantry approve`, deliberately. That
+    /// Every check here is repeated from `trunnion approve`, deliberately. That
     /// command refuses to write a grant it should not, but a ledger is a file
     /// and an append-only log is not an access-controlled one: anyone able to
     /// write the file can put an `approval.grant` on it. So the consuming end
@@ -471,7 +473,7 @@ impl BrokerRun {
                                 "policy held {tool} on {target}: rule {rule} gates this call pre and no approval on this ledger releases it"
                             ),
                             message.unwrap_or_else(|| format!(
-                                "have a permitted approver run: gantry approve <ledger-dir> {request_id} <approver>, then make the same call again; or lower the call's ambition to a capability with a lower gate"
+                                "have a permitted approver run: trunnion approve <ledger-dir> {request_id} <approver>, then make the same call again; or lower the call's ambition to a capability with a lower gate"
                             )),
                         ))
                     }

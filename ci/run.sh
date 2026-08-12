@@ -20,7 +20,7 @@ cargo test
 
 echo "== the verifier reports seq gaps, a consistency proof checks from the CLI, and an anchored head catches the rewrite verification alone misses (ci/ledger-seq-gap, ci/ledger-verify-consistency, ci/ledger-anchor) =="
 cargo build --quiet
-led_bin="$PWD/target/debug/gantry"
+led_bin="$PWD/target/debug/trunnion"
 led_root=$(mktemp -d)
 led="$led_root/led"
 mkdir -p "$led_root/keep"
@@ -57,7 +57,7 @@ case "$gap_out" in
 esac
 "$led_bin" ledger consistency "$led" 4 > "$led_root/bundle.json"
 if ! cons_out=$("$led_bin" ledger verify-consistency "$led_root/bundle.json" "$led/keys/ledger.pub"); then
-  echo "a consistency proof the ledger produced did not check out: $cons_out. Fix: gantry ledger consistency and gantry ledger verify-consistency must agree; both go through merkle::verify_consistency"
+  echo "a consistency proof the ledger produced did not check out: $cons_out. Fix: trunnion ledger consistency and trunnion ledger verify-consistency must agree; both go through merkle::verify_consistency"
   exit 1
 fi
 sed 's/"proof":\["sha256:[0-9a-f]*"/"proof":["sha256:abababababababababababababababababababababababababababababababab"/' \
@@ -122,13 +122,13 @@ fi
 # declared a host permission hash .claude/settings.json had stopped having.
 # A drift check that passes on the state it exists to catch is a dead sensor.
 if [ "$drift_status" != 0 ]; then
-  echo "gantry drift found the tracked policy out of step with this machine (exit $drift_status): $drift_out. Fix: the divergence line above names the field, both values and the change to make; correct config/policy.json or put the running system back"
+  echo "trunnion drift found the tracked policy out of step with this machine (exit $drift_status): $drift_out. Fix: the divergence line above names the field, both values and the change to make; correct config/policy.json or put the running system back"
   exit 1
 fi
 for field in ${(f)"$(jq -r '.profile_requirements | keys[]' config/policy.json)"}; do
   line=$(print -r -- "$drift_out" | grep "^$field: " || true)
   if [ -z "$line" ]; then
-    echo "gantry drift reported nothing for profile_requirements.$field. Fix: every field reports every run, matches included; see walk in src/drift.rs"
+    echo "trunnion drift reported nothing for profile_requirements.$field. Fix: every field reports every run, matches included; see walk in src/drift.rs"
     exit 1
   fi
   # A bare scalar requirement (rung_default) names no source at all, which is
@@ -167,7 +167,7 @@ else
   red_status=$?
 fi
 if [ "$red_status" != 1 ]; then
-  echo "a policy declaring a host permission hash the running system does not have exited $red_status, not 1: $red. Fix: gantry drift exits 1 when any field diverges; see drift_scan in src/main.rs"
+  echo "a policy declaring a host permission hash the running system does not have exited $red_status, not 1: $red. Fix: trunnion drift exits 1 when any field diverges; see drift_scan in src/main.rs"
   exit 1
 fi
 case "$red" in
@@ -205,7 +205,7 @@ jq '.profile = "regulated"
   | .profile_requirements.ledger.key_custody = "hsm"
   | .profile_requirements.on_unavailable = "refuse"
   | del(.profile_requirements.attestation)' config/policy.json > "$reg_root/config/policy.json"
-reg_bin="$PWD/target/debug/gantry"
+reg_bin="$PWD/target/debug/trunnion"
 if reg_out=$(cd "$reg_root" && "$reg_bin" broker call .ledger Read instructions/pack.md 2>&1); then
   reg_status=0
 else
@@ -237,10 +237,10 @@ echo "the regulated profile refused to start (exit $reg_status) and named its un
 
 echo "== template init generates a per-install actor key and the harness it produces signs (ci/template-init-signs) =="
 cargo build --quiet
-gantry_bin="$PWD/target/debug/gantry"
+trunnion_bin="$PWD/target/debug/trunnion"
 init_root=$(mktemp -d)
 cargo run --quiet -- template init templates/laptop "$init_root/harness" >/dev/null
-if init_verify=$(cd "$init_root/harness" && "$gantry_bin" broker call .ledger Read instructions/pack.md >/dev/null && "$gantry_bin" ledger verify .ledger); then
+if init_verify=$(cd "$init_root/harness" && "$trunnion_bin" broker call .ledger Read instructions/pack.md >/dev/null && "$trunnion_bin" ledger verify .ledger); then
   init_status=0
 else
   init_status=$?
@@ -250,14 +250,14 @@ rm -rf "$init_root"
 # verified count and then exits non-zero on a fault. Reading only the text
 # would pass a harness whose ledger does not check out.
 if [ "$init_status" != 0 ]; then
-  echo "the harness template init produced did not run and verify clean (exit $init_status): $init_verify. Fix: run gantry template init by hand into an empty directory and work through the first failing command"
+  echo "the harness template init produced did not run and verify clean (exit $init_status): $init_verify. Fix: run trunnion template init by hand into an empty directory and work through the first failing command"
   exit 1
 fi
 case "$init_verify" in
   *"attestations verified against config/actor-keys.json"*)
     ;;
   *)
-    echo "the harness template init produced does not sign: $init_verify. Fix: gantry template init must generate an actor key, register it in config/actor-keys.json and declare it in profile_requirements.attestation; see generate_actor_key in src/main.rs"
+    echo "the harness template init produced does not sign: $init_verify. Fix: trunnion template init must generate an actor key, register it in config/actor-keys.json and declare it in profile_requirements.attestation; see generate_actor_key in src/main.rs"
     exit 1
     ;;
 esac
@@ -272,30 +272,30 @@ echo "the generated harness signs under a key only it holds: ${init_verify//$'\n
 echo "== sensor liveness sweep (ci/sensor-liveness-schedule): every tracked sensor rejects every negative control it declares and accepts every positive one =="
 cargo run --quiet -- sensor live templates/laptop/config/sensors/*.json docs/proof/fixtures/no-private-key.json
 
-echo "== permission-mode hook injects the observed mode into gantry commands, leaves everything else alone (ci/permission-mode-hook) =="
+echo "== permission-mode hook injects the observed mode into trunnion commands, leaves everything else alone (ci/permission-mode-hook) =="
 HOOK=.claude/hooks/permission-mode.sh
 untouched=$(echo '{"tool_input":{"command":"echo hello"},"permission_mode":"acceptEdits"}' | $HOOK)
 if [ "$untouched" != "{}" ]; then
-  echo "hook rewrote a command with no gantry in it: $untouched. Fix: the case match in .claude/hooks/permission-mode.sh must only touch commands containing \"gantry\""
+  echo "hook rewrote a command with no trunnion in it: $untouched. Fix: the case match in .claude/hooks/permission-mode.sh must only touch commands containing \"trunnion\""
   exit 1
 fi
-no_mode=$(echo '{"tool_input":{"command":"echo gantry-hook-check"}}' | $HOOK)
+no_mode=$(echo '{"tool_input":{"command":"echo trunnion-hook-check"}}' | $HOOK)
 if [ "$no_mode" != "{}" ]; then
-  echo "hook rewrote a gantry command with no permission_mode observed: $no_mode. Fix: an absent signal must pass through untouched, never guessed"
+  echo "hook rewrote a trunnion command with no permission_mode observed: $no_mode. Fix: an absent signal must pass through untouched, never guessed"
   exit 1
 fi
-rewritten=$(echo '{"tool_input":{"command":"echo gantry-hook-check"},"permission_mode":"bypassPermissions"}' | $HOOK | jq -r '.hookSpecificOutput.updatedInput.command')
+rewritten=$(echo '{"tool_input":{"command":"echo trunnion-hook-check"},"permission_mode":"bypassPermissions"}' | $HOOK | jq -r '.hookSpecificOutput.updatedInput.command')
 case "$rewritten" in
-  "export CLAUDE_PERMISSION_MODE="*"bypassPermissions"*"echo gantry-hook-check")
+  "export CLAUDE_PERMISSION_MODE="*"bypassPermissions"*"echo trunnion-hook-check")
     ;;
   *)
-    echo "hook did not inject CLAUDE_PERMISSION_MODE into a gantry command: $rewritten. Fix: check the jq program in .claude/hooks/permission-mode.sh"
+    echo "hook did not inject CLAUDE_PERMISSION_MODE into a trunnion command: $rewritten. Fix: check the jq program in .claude/hooks/permission-mode.sh"
     exit 1
     ;;
 esac
-granted=$(echo '{"tool_input":{"command":"echo gantry-hook-check"},"permission_mode":"bypassPermissions"}' | $HOOK | jq -r '.hookSpecificOutput.permissionDecision // "none"')
+granted=$(echo '{"tool_input":{"command":"echo trunnion-hook-check"},"permission_mode":"bypassPermissions"}' | $HOOK | jq -r '.hookSpecificOutput.permissionDecision // "none"')
 if [ "$granted" != "none" ]; then
-  echo "the permission-mode hook returned permissionDecision=$granted. Fix: remove it from .claude/hooks/permission-mode.sh; a hook that grants permission to every command containing \"gantry\" widens the session's authority past what .claude/settings.json declares, which is the drift this hook exists to measure"
+  echo "the permission-mode hook returned permissionDecision=$granted. Fix: remove it from .claude/hooks/permission-mode.sh; a hook that grants permission to every command containing \"trunnion\" widens the session's authority past what .claude/settings.json declares, which is the drift this hook exists to measure"
   exit 1
 fi
 propagated=$(sh -c "$rewritten; printf '%s' \"\$CLAUDE_PERMISSION_MODE\"")
@@ -347,9 +347,9 @@ echo "== a scoring level credits a control running, never what it found (ci/scor
 # call and the deny path must not, and the divergent walk must exit non-zero,
 # or the two ledgers being compared did not actually differ and the equality is
 # worth nothing.
-sc_bin="$PWD/target/debug/gantry"
+sc_bin="$PWD/target/debug/trunnion"
 sc_work=$(mktemp -d)
-sc_publish='git push gantry-ci-no-such-remote HEAD'
+sc_publish='git push trunnion-ci-no-such-remote HEAD'
 echo "clean finding" > "$sc_work/art.md"
 sc_score() { # ledger, primitive line prefix -> that primitive's score
   "$sc_bin" score "$1" config/scoring.json 2>/dev/null \
@@ -380,7 +380,7 @@ done
 cp -R "$sc_base" "$sc_work/approved"
 sc_req=$(sc_hold "$sc_work/approved")
 if ! "$sc_bin" approve "$sc_work/approved" "$sc_req" user:ci@local >/dev/null; then
-  echo "gantry approve refused to record an approval for a held call. Fix: run the command by hand and read the fault; approve() in src/main.rs pairs each tool.request with the decision that answers it"
+  echo "trunnion approve refused to record an approval for a held call. Fix: run the command by hand and read the fault; approve() in src/main.rs pairs each tool.request with the decision that answers it"
   exit 1
 fi
 if ! "$sc_bin" broker call "$sc_work/approved" Bash "$sc_publish" >/dev/null 2>&1; then
@@ -435,14 +435,14 @@ if [ "$sc_unwalked" -ge "$sc_match" ]; then
 fi
 echo "primitive 07: approve and deny both score $sc_yes, an unanswered hold scores $sc_none. Primitive 12: match and divergence both score $sc_match, an unwalked ledger scores $sc_unwalked"
 
-echo "== gantry scan runs on this repo and every score names a path (ci/scan-evidence) =="
+echo "== trunnion scan runs on this repo and every score names a path (ci/scan-evidence) =="
 # The census CLAUDE.md asks for is now the scan's own output rather than a
 # grep, and the check is that no number arrives bare: a score with nothing
 # behind it is the exact failure this command exists to refuse.
 # stderr is folded in so a fault arrives with its fix attached; only lines
 # starting "primitive " are read as scores, so nothing else can pass for one.
 if ! scan_out=$(cargo run --quiet -- scan . 2>&1); then
-  echo "gantry scan failed on this repository: $scan_out. Fix: run cargo run -- scan . and read the fault; the scan only reads, so a failure here is a bug in src/scan.rs rather than repository state to clean up"
+  echo "trunnion scan failed on this repository: $scan_out. Fix: run cargo run -- scan . and read the fault; the scan only reads, so a failure here is a bug in src/scan.rs rather than repository state to clean up"
   exit 1
 fi
 scored=0
@@ -454,13 +454,13 @@ for line in ${(f)scan_out}; do
       score=${fields[2]// /}
       evidence=${${fields[3]}//[[:space:]]/}
       if [ -z "$evidence" ]; then
-        echo "gantry scan reported a score with nothing behind it: $line. Fix: every branch in src/scan.rs builds an evidence string naming either the artifact found or every path looked in; a number with no path is an opinion, which is what docs/PRIMITIVES.md refuses"
+        echo "trunnion scan reported a score with nothing behind it: $line. Fix: every branch in src/scan.rs builds an evidence string naming either the artifact found or every path looked in; a number with no path is an opinion, which is what docs/PRIMITIVES.md refuses"
         exit 1
       fi
       case "$score" in
         [0-3]) ;;
         *)
-          echo "gantry scan reported score '$score' for: $line. Fix: a static read resolves absent (0), an artifact (2) and an artifact a check names (3); 4 and above is a claim about a control running and only gantry score over a ledger can make it"
+          echo "trunnion scan reported score '$score' for: $line. Fix: a static read resolves absent (0), an artifact (2) and an artifact a check names (3); 4 and above is a claim about a control running and only trunnion score over a ledger can make it"
           exit 1
           ;;
       esac
@@ -468,7 +468,7 @@ for line in ${(f)scan_out}; do
   esac
 done
 if [ "$scored" != 12 ]; then
-  echo "gantry scan reported $scored primitive lines, expected 12. Fix: PROBES in src/scan.rs carries one entry per primitive in docs/PRIMITIVES.md, and the report prints all of them, scored or not"
+  echo "trunnion scan reported $scored primitive lines, expected 12. Fix: PROBES in src/scan.rs carries one entry per primitive in docs/PRIMITIVES.md, and the report prints all of them, scored or not"
   exit 1
 fi
 overall=$(echo "$scan_out" | sed -n 's/^overall \([0-9]*\) |.*/\1/p')
@@ -476,7 +476,7 @@ if [ "$overall" -gt 3 ]; then
   echo "the static scan of this repository scored overall $overall, above the ceiling a static read is allowed. Fix: a file shows a control is present, never that it ran; the telemetry score from zsh docs/proof/08-run.sh is the only number that can go higher, and a static scan that outranks it is measuring prose"
   exit 1
 fi
-echo "12 primitive scores, each with a path behind it, static overall $overall (telemetry, from gantry score over a real ledger, is the number that can exceed 3)"
+echo "12 primitive scores, each with a path behind it, static overall $overall (telemetry, from trunnion score over a real ledger, is the number that can exceed 3)"
 echo "$scan_out" | sed -n '/UNENFORCED/,$p'
 
 echo "== every PEM private key block in this repository is a fixture (ci/no-real-private-key) =="
@@ -486,7 +486,7 @@ echo "== every PEM private key block in this repository is a fixture (ci/no-real
 # allowlist is a switched-off sensor, so this is what stands behind it: it
 # reads every tracked file rather than only the exempted ones, and measures
 # the decoded body instead of matching the header.
-key_bin="$PWD/target/debug/gantry"
+key_bin="$PWD/target/debug/trunnion"
 if ! key_out=$("$key_bin" scan-keys .); then
   echo "$key_out"
   exit 1
@@ -505,7 +505,7 @@ python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.dumps({"negative_c
 ssh-keygen -q -t ed25519 -N '' -f "$key_work/ssh/id" </dev/null
 for planted in plain control ssh; do
   if "$key_bin" scan-keys "$key_work/$planted" >/dev/null; then
-    echo "a real ed25519 private key planted as $planted passed gantry scan-keys. Fix: the check is dead, so the exemptions in .gitleaks.toml and .github/secret_scanning.yml here and in templates/laptop are switched-off sensors with nothing behind them; read SMALLEST_REAL_KEY and key_blocks in src/scan.rs"
+    echo "a real ed25519 private key planted as $planted passed trunnion scan-keys. Fix: the check is dead, so the exemptions in .gitleaks.toml and .github/secret_scanning.yml here and in templates/laptop are switched-off sensors with nothing behind them; read SMALLEST_REAL_KEY and key_blocks in src/scan.rs"
     exit 1
   fi
 done
@@ -518,7 +518,7 @@ key_harness=$(mktemp -d)
 "$key_bin" template init templates/laptop "$key_harness/h" >/dev/null
 for shipped in .gitleaks.toml .github/secret_scanning.yml .gitignore; do
   if [ ! -f "$key_harness/h/$shipped" ]; then
-    echo "gantry template init produced a harness with no $shipped. Fix: template_validate in src/main.rs requires it and returns it in the copy list; a harness whose first secret scan reports four leaks in its own sensor is a harness whose sensor gets switched off"
+    echo "trunnion template init produced a harness with no $shipped. Fix: template_validate in src/main.rs requires it and returns it in the copy list; a harness whose first secret scan reports four leaks in its own sensor is a harness whose sensor gets switched off"
     exit 1
   fi
 done
@@ -527,12 +527,12 @@ if ! grep -q "config/actor-key.seed" "$key_harness/h/.gitignore"; then
   exit 1
 fi
 if ! "$key_bin" scan-keys "$key_harness/h" >/dev/null; then
-  echo "a freshly initialised harness does not pass gantry scan-keys. Fix: read the output of gantry scan-keys on it; the template ships sensor controls and never key material"
+  echo "a freshly initialised harness does not pass trunnion scan-keys. Fix: read the output of trunnion scan-keys on it; the template ships sensor controls and never key material"
   exit 1
 fi
 cp "$key_work/plain/real.pem" "$key_harness/h/config/sensors/leaked.pem"
 if "$key_bin" scan-keys "$key_harness/h" >/dev/null; then
-  echo "a real key inside the harness's exempted sensor directory passed gantry scan-keys. Fix: scan_keys in src/scan.rs walks the whole tree precisely so that widening a scanner exemption cannot widen the hole"
+  echo "a real key inside the harness's exempted sensor directory passed trunnion scan-keys. Fix: scan_keys in src/scan.rs walks the whole tree precisely so that widening a scanner exemption cannot widen the hole"
   exit 1
 fi
 echo "an initialised harness ships the exemption, the .gitignore for its seed, and a key planted in the exempted directory is still caught"

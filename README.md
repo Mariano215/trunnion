@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="Gantry" width="200">
+  <img src="docs/assets/logo.png" alt="Trunnion" width="200">
 </p>
 
-# Gantry
+# Trunnion
 
 **A control plane that sits between your AI agents and everything they can
 touch, records every decision on a tamper-evident log, and scores how well it
@@ -12,17 +12,17 @@ One static binary. No cloud account, no phone-home, runs air-gapped. Works
 with any model provider and under any agent framework.
 
 <p align="center">
-  <img src="docs/assets/first-hour.svg" alt="A terminal session: gantry initialises a ledger, refuses a destructive tool call while naming the rule and the fix, verifies the record, then detects one altered character on a copy of it with three independent faults" width="749">
+  <img src="docs/assets/first-hour.svg" alt="A terminal session: trunnion initialises a ledger, refuses a destructive tool call while naming the rule and the fix, verifies the record, then detects one altered character on a copy of it with three independent faults" width="749">
 </p>
 
 Four commands, and every line above came out of the binary. `dev/termcast.py`
 runs the tape in `dev/readme-cast.tape` and draws what it printed, so the
-animation cannot show output gantry did not produce. It is a plain SVG with no
+animation cannot show output trunnion did not produce. It is a plain SVG with no
 script and no host to fetch anything from, because a README that phones out on
 the first screen would contradict the paragraph above it.
 
 The same material with the terminal, the policy simulator and the scorecard
-you can click through is at **[mariano215.github.io/gantry](https://mariano215.github.io/gantry/)**.
+you can click through is at **[mariano215.github.io/trunnion](https://mariano215.github.io/trunnion/)**.
 It is served as static files that reference no host either, which
 `ci/site-offline.sh` holds by rendering the page with every name but loopback
 unresolvable.
@@ -49,7 +49,7 @@ Three questions in particular:
 3. **Can someone who was not in the room verify any of that?** Logs you can
    edit prove nothing about a system you operate.
 
-Gantry is the harness half, built as a product instead of assembled per
+Trunnion is the harness half, built as a product instead of assembled per
 project. Every model call goes through one gateway. Every tool call goes
 through one broker that consults a policy and names the rule behind each
 decision. Both write to an append-only cryptographic log that a third party
@@ -89,13 +89,13 @@ a plain unprivileged `docker run` with no flags gets Landlock, because the
 backend was chosen for exactly that property.
 
 ```
-docker pull ghcr.io/mariano215/gantry:latest
-docker run --rm -v "$PWD:/harness" ghcr.io/mariano215/gantry \
-  template init /usr/share/gantry/templates/laptop /harness/myharness
+docker pull ghcr.io/mariano215/trunnion:latest
+docker run --rm -v "$PWD:/harness" ghcr.io/mariano215/trunnion \
+  template init /usr/share/trunnion/templates/laptop /harness/myharness
 ```
 
 **A binary.** Every release carries a macOS (Apple silicon) and a Linux
-(x86_64) archive with a checksum file. Download, check it, put `gantry` on your
+(x86_64) archive with a checksum file. Download, check it, put `trunnion` on your
 path.
 
 ```
@@ -112,21 +112,21 @@ cargo build
 
 ## What the commands do, in plain English
 
-`gantry` with no arguments lists every form. In ordinary words:
+`trunnion` with no arguments lists every form. In ordinary words:
 
 | Command | What it does |
 |---|---|
-| `gantry template init <template> <dir>` | Creates a working harness in an empty directory: a policy, scoring rules, sensors, and a signing key generated for that install alone. This is the first thing to run. |
-| `gantry broker call <ledger-dir> <tool> <target>` | Asks to run one tool call. The policy decides, the answer and its reason go on the log, and if it is allowed the command runs inside a sandbox. This is the thing your agent calls instead of running commands itself. |
-| `gantry approve <ledger-dir> <request-id> <approver> [approve\|deny]` | Answers a call the policy put on hold. A named human, on the record. Add `deny` as a last argument to refuse, which is also recorded: "nobody looked" and "somebody said no" are different states. |
-| `gantry ledger verify <ledger-dir>` | Recomputes the whole log from scratch and reports any entry that does not check out. Run it against a log someone hands you; it needs nothing but the directory. |
-| `gantry ledger anchor <ledger-dir> <anchor-file>` | Writes a copy of the current signed head somewhere outside the log. This is what catches a writer who rewrites their own history, which verification alone cannot. |
-| `gantry score <ledger-dir> [scoring.json]` | Scores the twelve primitives from what the log says actually happened. It reads events, never configuration, so it cannot be talked into a better number. |
-| `gantry scan <repo-dir>` | Looks at a repository on disk and scores it without running anything. Caps at 3, because a file can say a check is wired and only a run says it fired. Writes nothing to what it reads. |
-| `gantry project add\|list\|scan\|remediate <...>` | Manages a set of repositories, so one install answers for many projects. `remediate` turns each gap into a brief you can paste into an agent, in the contracts' own words. |
-| `gantry console [ledger-dir]` | Serves the read-only web console on loopback. With a ledger it shows that log; with no argument it shows every registered project. It writes nothing, ever. |
-| `gantry drift <ledger-dir> <policy.json>` | Checks that what the policy claims about the machine is still true of the machine, and reports every claim it cannot check rather than passing it quietly. |
-| `gantry sensor live <sensor.json>...` | Runs every sensor against content it must reject. A sensor that has quietly stopped working is reported broken rather than clean. |
+| `trunnion template init <template> <dir>` | Creates a working harness in an empty directory: a policy, scoring rules, sensors, and a signing key generated for that install alone. This is the first thing to run. |
+| `trunnion broker call <ledger-dir> <tool> <target>` | Asks to run one tool call. The policy decides, the answer and its reason go on the log, and if it is allowed the command runs inside a sandbox. This is the thing your agent calls instead of running commands itself. |
+| `trunnion approve <ledger-dir> <request-id> <approver> [approve\|deny]` | Answers a call the policy put on hold. A named human, on the record. Add `deny` as a last argument to refuse, which is also recorded: "nobody looked" and "somebody said no" are different states. |
+| `trunnion ledger verify <ledger-dir>` | Recomputes the whole log from scratch and reports any entry that does not check out. Run it against a log someone hands you; it needs nothing but the directory. |
+| `trunnion ledger anchor <ledger-dir> <anchor-file>` | Writes a copy of the current signed head somewhere outside the log. This is what catches a writer who rewrites their own history, which verification alone cannot. |
+| `trunnion score <ledger-dir> [scoring.json]` | Scores the twelve primitives from what the log says actually happened. It reads events, never configuration, so it cannot be talked into a better number. |
+| `trunnion scan <repo-dir>` | Looks at a repository on disk and scores it without running anything. Caps at 3, because a file can say a check is wired and only a run says it fired. Writes nothing to what it reads. |
+| `trunnion project add\|list\|scan\|remediate <...>` | Manages a set of repositories, so one install answers for many projects. `remediate` turns each gap into a brief you can paste into an agent, in the contracts' own words. |
+| `trunnion console [ledger-dir]` | Serves the read-only web console on loopback. With a ledger it shows that log; with no argument it shows every registered project. It writes nothing, ever. |
+| `trunnion drift <ledger-dir> <policy.json>` | Checks that what the policy claims about the machine is still true of the machine, and reports every claim it cannot check rather than passing it quietly. |
+| `trunnion sensor live <sensor.json>...` | Runs every sensor against content it must reject. A sensor that has quietly stopped working is reported broken rather than clean. |
 
 ## The first hour
 
@@ -142,7 +142,7 @@ part of this section shows the same thing in a directory of your own.
 
 ```
 $ cargo build
-$ ./target/debug/gantry ledger init /tmp/demo/ledger
+$ ./target/debug/trunnion ledger init /tmp/demo/ledger
 ledger initialised at /tmp/demo/ledger
 ```
 
@@ -156,7 +156,7 @@ Ask the tool broker to run something destructive. Your agent would normally do
 this through the broker instead of a shell; the CLI is the same code path.
 
 ```
-$ ./target/debug/gantry broker call /tmp/demo/ledger Bash "rm -rf /"
+$ ./target/debug/trunnion broker call /tmp/demo/ledger Bash "rm -rf /"
 policy denied Bash on rm -rf /: rule r-destructive-shell fired and the
 decision is on the ledger. Fix: This command is destructive and its
 capability's rollback handle cannot recall it. Scope the deletion to a path
@@ -178,7 +178,7 @@ rather than an absence you have to infer later.
 Now do something allowed:
 
 ```
-$ ./target/debug/gantry broker call /tmp/demo/ledger Read docs/PLAN.md
+$ ./target/debug/trunnion broker call /tmp/demo/ledger Read docs/PLAN.md
 ... file contents ...
 [taint: true] (ledger sealed at size 15)
 ```
@@ -246,7 +246,7 @@ confirms every payload is present or lawfully expired, and checks each
 attestation against the registered keys:
 
 ```
-$ ./target/debug/gantry ledger verify /tmp/demo/ledger
+$ ./target/debug/trunnion ledger verify /tmp/demo/ledger
 entries: 15
 attestations verified against config/actor-keys.json: 15
 of those, 15 were signed under a key whose seed is published, so they prove
@@ -266,12 +266,12 @@ bundle and check it somewhere else, with no ledger directory and no network:
 
 ```
 $ mkdir -p /tmp/offline
-$ ./target/debug/gantry ledger prove /tmp/demo/ledger 4 > /tmp/offline/bundle.json
+$ ./target/debug/trunnion ledger prove /tmp/demo/ledger 4 > /tmp/offline/bundle.json
 $ cp /tmp/demo/ledger/keys/ledger.pub /tmp/offline/
 $ cd /tmp/offline && ls
 bundle.json  ledger.pub
 $ sandbox-exec -p '(version 1)(allow default)(deny network*)' \
-    gantry ledger verify-inclusion bundle.json ledger.pub
+    trunnion ledger verify-inclusion bundle.json ledger.pub
 inclusion verified: entry 4 (id run-1785937403180-4) under signed head size 15
 ```
 
@@ -284,7 +284,7 @@ the log, in this position, at this size."
 Copy the ledger, change one character of one timestamp, and verify again:
 
 ```
-$ gantry ledger verify /tmp/demo/tampered
+$ trunnion ledger verify /tmp/demo/tampered
 entries: 15
 attestations verified against config/actor-keys.json: 14
 entry 4 (run-1785937403180-4): chain diverges between entry 4 and entry 5 ...
@@ -303,7 +303,7 @@ Exit code 1.
 ### Score what just happened
 
 ```
-$ ./target/debug/gantry score /tmp/demo/ledger
+$ ./target/debug/trunnion score /tmp/demo/ledger
 | Primitive | Score | Evidence |
 |---|---|---|
 | 01 Instruction | 3 | instruction pack version-pinned on every run.open |
@@ -336,7 +336,7 @@ zsh docs/proof/08-run.sh
 ### Look at it
 
 ```
-$ ./target/debug/gantry console /tmp/demo/ledger 127.0.0.1:8731
+$ ./target/debug/trunnion console /tmp/demo/ledger 127.0.0.1:8731
 console at http://127.0.0.1:8731/ (ctrl-c to stop)
 ```
 
@@ -359,7 +359,7 @@ directory, and takes each sensor by path. `template init` writes that whole
 layout, sensors included, so a new directory runs standalone:
 
 ```
-$ ./target/debug/gantry template init templates/laptop ~/my-harness
+$ ./target/debug/trunnion template init templates/laptop ~/my-harness
 template templates/laptop validates: profile laptop, 5 capabilities, 8 rules,
 3 provider(s), 12 scoring rule(s), 2 sensor(s), 1 signing key(s)
 wrote /Users/you/my-harness/config/policy.json
@@ -382,8 +382,8 @@ rather than three:
 
 ```
 $ cd ~/my-harness
-$ gantry broker call .ledger Read instructions/pack.md
-$ gantry ledger verify .ledger
+$ trunnion broker call .ledger Read instructions/pack.md
+$ trunnion ledger verify .ledger
 entries: 7
 attestations verified against config/actor-keys.json: 7
 ```
@@ -396,7 +396,7 @@ The bundle validates as a whole before a single file is copied, and every
 destination path is checked before the first write, so a refused init leaves no
 half-written harness. Every part loads through the same validator the running
 system uses, which is what stops a template from producing a directory the
-platform would refuse at runtime. `gantry template validate <dir>` runs that
+platform would refuse at runtime. `trunnion template validate <dir>` runs that
 check on its own, and CI runs it on every push.
 
 ### What you have not seen
@@ -407,14 +407,14 @@ waits for a human. That path runs, and it is the shortest way to see the whole
 idea in one place:
 
 ```
-$ gantry broker call /tmp/demo/ledger Bash "git push origin main"
+$ trunnion broker call /tmp/demo/ledger Bash "git push origin main"
 policy held Bash on git push origin main: rule r-publish gates this call pre
 and no approval on this ledger releases it.
 
-$ gantry approve /tmp/demo/ledger <request-id> user:you@example.com
+$ trunnion approve /tmp/demo/ledger <request-id> user:you@example.com
 approval run-...-0: user:you@example.com recorded approve for rule r-publish
 
-$ gantry broker call /tmp/demo/ledger Bash "git push origin main"
+$ trunnion broker call /tmp/demo/ledger Bash "git push origin main"
 [taint: true]
 ```
 
@@ -436,12 +436,12 @@ section on what is still a guide.
   authority is declared once, enforced in code, and recorded, instead of
   spread across prompts and config files.
 - **Someone is going to audit this.** A security review, a client, a
-  regulator. Gantry produces evidence as a side effect of running, so the
+  regulator. Trunnion produces evidence as a side effect of running, so the
   answer is a log export, not a reconstruction project.
 - **You cannot send data out.** No hosted control plane, no licence check, no
   CDN font. The test suite runs with an empty network namespace, which is what
   keeps that claim honest.
-- **You do not want to marry a framework.** Gantry sits underneath LangGraph,
+- **You do not want to marry a framework.** Trunnion sits underneath LangGraph,
   Temporal, Claude Code, or a shell script. Point your existing harness at the
   gateway and broker and you inherit the tool, sandbox, observability and
   governance layers without rewriting your agent.
@@ -455,8 +455,8 @@ job.
 
 ## The twelve primitives, in plain English
 
-Gantry is organised around a rubric that decomposes any agent harness into
-twelve layers. The rubric is the measuring instrument; Gantry is that
+Trunnion is organised around a rubric that decomposes any agent harness into
+twelve layers. The rubric is the measuring instrument; Trunnion is that
 instrument pointed at itself and satisfied by construction.
 
 Each layer scores 0 to 5. The overall level is the **minimum**, never the
@@ -495,7 +495,7 @@ Started with no argument it answers for the whole workspace, which needs no
 ledger at all: a static scan reads a tree, and a tree has no log.
 
 ```
-$ ./target/debug/gantry console
+$ ./target/debug/trunnion console
 console at http://127.0.0.1:49159/ (ctrl-c to stop)
 ```
 
@@ -512,7 +512,7 @@ the remediation queue in the contracts' own words.
 Started against a ledger it answers for that log instead:
 
 ```
-$ ./target/debug/gantry console /tmp/demo/ledger 127.0.0.1:8731
+$ ./target/debug/trunnion console /tmp/demo/ledger 127.0.0.1:8731
 console at http://127.0.0.1:8731/ (ctrl-c to stop)
 ```
 
@@ -542,7 +542,7 @@ Nine views over a read-only JSON API (`docs/CONSOLE-API.md`):
   arrow only where a producer recorded a handoff. The picture is sparse and
   the sparseness is the finding.
 - **Inbox**, every call the policy held, what the record says has happened to
-  it, and the exact `gantry approve` command that resolves it.
+  it, and the exact `trunnion approve` command that resolves it.
 - **Verify**, the verification result and the offline command that reproduces
   it.
 
@@ -565,7 +565,7 @@ banner that cannot be dismissed for the rest of the session. The console
 never claims to have verified anything itself. It reports what the server
 found and hands you the command that checks the server.
 
-`gantry score <ledger> <rules.json> <out.html>` still writes the scorecard as
+`trunnion score <ledger> <rules.json> <out.html>` still writes the scorecard as
 a single self-contained file, for attaching to a report.
 
 Not built yet: no inclusion-proof view, no sensor board, no anchoring view.
@@ -616,11 +616,11 @@ Live update is a poll, not a stream, and only the ledger view polls.
   of them, served by the same
   binary from the same process, standard library only and no new dependency.
 
-`gantry` with no arguments lists every subcommand.
+`trunnion` with no arguments lists every subcommand.
 
-## Gantry scored by Gantry
+## Trunnion scored by Trunnion
 
-The table below is produced by `gantry score` reading a ledger that exercised
+The table below is produced by `trunnion score` reading a ledger that exercised
 the layers, not by reading this file. The scoring rules are data
 (`config/scoring.json`), so anyone holding an exported ledger re-derives the
 same twelve numbers without trusting the binary.

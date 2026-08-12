@@ -1,16 +1,16 @@
 use ed25519_dalek::{Signer, SigningKey};
-use gantry::event::{Envelope, NewEvent};
-use gantry::ledger::{self, Ledger};
 use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use trunnion::event::{Envelope, NewEvent};
+use trunnion::ledger::{self, Ledger};
 
 static DIR_N: AtomicU64 = AtomicU64::new(0);
 
 fn temp_dir(name: &str) -> PathBuf {
     let n = DIR_N.fetch_add(1, Ordering::SeqCst);
-    let d = std::env::temp_dir().join(format!("gantry-test-{}-{name}-{n}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-test-{}-{name}-{n}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     d
 }
@@ -58,7 +58,7 @@ fn attested_ev(seq: u64, sk: &SigningKey) -> NewEvent {
         kind: e.kind.clone(),
         actor: e.actor.clone(),
         authority: e.authority.clone(),
-        subject_hash: gantry::event::subject_hash(&e.subject).unwrap(),
+        subject_hash: trunnion::event::subject_hash(&e.subject).unwrap(),
         redacted: vec![],
         prev_hash: None,
         attestation: None,
@@ -66,7 +66,7 @@ fn attested_ev(seq: u64, sk: &SigningKey) -> NewEvent {
     let sig = sk.sign(&stub.attestation_bytes().unwrap());
     e.attestation = Some(json!({
         "alg": "ed25519",
-        "key_id": gantry::skills::key_id_for(&sk.verifying_key()),
+        "key_id": trunnion::skills::key_id_for(&sk.verifying_key()),
         "value": hex::encode(sig.to_bytes()),
     }));
     e
@@ -106,7 +106,7 @@ fn a_forged_attestation_under_a_registered_key_is_a_fault() {
     let sig = sk.sign(b"entirely different bytes");
     e.attestation = Some(json!({
         "alg": "ed25519",
-        "key_id": gantry::skills::key_id_for(&sk.verifying_key()),
+        "key_id": trunnion::skills::key_id_for(&sk.verifying_key()),
         "value": hex::encode(sig.to_bytes()),
     }));
     l.append(e).unwrap();
@@ -612,7 +612,10 @@ fn reopen_continues_the_chain() {
 #[test]
 fn a_secret_value_on_the_ledger_is_found_and_never_echoed() {
     let (dir, _l) = build("scan-clean", 3);
-    let secrets = vec![("GANTRY_HANDLE_API".to_string(), "hunter2-value".to_string())];
+    let secrets = vec![(
+        "TRUNNION_HANDLE_API".to_string(),
+        "hunter2-value".to_string(),
+    )];
     assert!(ledger::scan_for_secrets(&dir, &secrets).unwrap().is_empty());
 
     let (dir, mut l) = build("scan-hit", 1);
@@ -626,7 +629,7 @@ fn a_secret_value_on_the_ledger_is_found_and_never_echoed() {
     assert!(!hits.is_empty(), "the leaked value must be found");
     for hit in &hits {
         let text = hit.to_string();
-        assert!(text.contains("GANTRY_HANDLE_API"), "{text}");
+        assert!(text.contains("TRUNNION_HANDLE_API"), "{text}");
         assert!(
             !text.contains("hunter2-value"),
             "the scanner must never echo the secret: {text}"

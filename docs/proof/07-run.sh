@@ -4,7 +4,7 @@
 # and accuracy delta, including the case where the stale graph loses. Run from
 # the repository root after cargo build. No network needed.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof07.XXXXXX)
 echo "workdir: $WORK"
 

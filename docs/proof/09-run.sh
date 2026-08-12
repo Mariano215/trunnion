@@ -4,7 +4,7 @@
 # before any run consumes it. Then delegation narrows scope and refuses to
 # widen. Run from the repository root after cargo build. No network needed.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof09.XXXXXX)
 L=$WORK/ledger
 SRC=docs/proof/fixtures/skill-repo-audit

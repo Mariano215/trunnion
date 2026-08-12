@@ -333,7 +333,7 @@
               "present": true
             }
           ],
-          "evidence": "the declaration is checked against the running system rather than assumed: gantry drift walked the profile requirements and reported one event per field, and every run open recorded which declared requirements this machine could not provide (an empty list when it provided them all, which is why the list is never absent). Both predicates name the walk having run, never what it found: a ledger of matches and a ledger of divergences are the same control working, and scoring them differently would pay for breakage."
+          "evidence": "the declaration is checked against the running system rather than assumed: trunnion drift walked the profile requirements and reported one event per field, and every run open recorded which declared requirements this machine could not provide (an empty list when it provided them all, which is why the list is never absent). Both predicates name the walk having run, never what it found: a ledger of matches and a ledger of divergences are the same control working, and scoring them differently would pay for breakage."
         }
       ]
     }

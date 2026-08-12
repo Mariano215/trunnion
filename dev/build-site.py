@@ -56,7 +56,7 @@ FONT_STACKS = {
 }
 
 CSS_HEADER = """/* =========================================================================
-   Gantry site foundations, built by dev/build-site.py from
+   Trunnion site foundations, built by dev/build-site.py from
    dev/site-src/colors_and_type.css. Do not edit here.
 
    Two changes from the export: no Google Fonts @import, and the three
@@ -91,11 +91,11 @@ def build_css():
 
 
 def build_html():
-    html = read(f"{SRC}/gantry.dc.html")
+    html = read(f"{SRC}/trunnion.dc.html")
 
     boot = '<script src="./support.js"></script>'
     if boot not in html:
-        sys.exit(f"{SRC}/gantry.dc.html: no support.js tag to load React ahead of. "
+        sys.exit(f"{SRC}/trunnion.dc.html: no support.js tag to load React ahead of. "
                  f"Fix: the export changed how it boots; read dev/build-site.py")
     html = html.replace(boot, "\n".join(
         f'<script src="./vendor/{name}"></script>' for name, _ in VENDOR) + "\n" + boot)
@@ -105,16 +105,16 @@ def build_html():
     html = html.replace("<helmet>", '<helmet>\n<link rel="stylesheet" href="styles.css">', 1)
     html = html.replace(
         '<meta charset="utf-8">',
-        '<meta charset="utf-8">\n<title>Gantry</title>\n'
+        '<meta charset="utf-8">\n<title>Trunnion</title>\n'
         '<link rel="icon" href="assets/logo.png">')
-    return ("<!-- Built by dev/build-site.py from dev/site-src/gantry.dc.html.\n"
+    return ("<!-- Built by dev/build-site.py from dev/site-src/trunnion.dc.html.\n"
             "     Edit the source, not this file: the next build overwrites it. -->\n"
             + html), dropped
 
 
 def vendor_react():
     """Copy the UMD builds the runtime expects, from this machine's node_modules."""
-    roots = os.environ.get("GANTRY_NODE_MODULES", "").split(os.pathsep)
+    roots = os.environ.get("TRUNNION_NODE_MODULES", "").split(os.pathsep)
     roots = [r for r in roots if r]
     support = read(f"{SRC}/support.js")
     for name, relative in VENDOR:
@@ -137,7 +137,7 @@ def vendor_react():
         if not found:
             sys.exit(
                 f"no {package} {want.group(1)} UMD build on this machine. Fix: set "
-                f"GANTRY_NODE_MODULES to a colon-separated list of node_modules "
+                f"TRUNNION_NODE_MODULES to a colon-separated list of node_modules "
                 f"directories holding it, for example a project that depends on "
                 f"react@{want.group(1)}; this script fetches nothing")
         shutil.copyfile(found, f"{OUT}/vendor/{name}")

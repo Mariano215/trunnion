@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to gantry. The format follows
+Notable changes to trunnion. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Every entry names the consequence for a score or for what a reader can trust,
@@ -9,7 +9,29 @@ the diff to find out whether it mattered.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **Renamed from gantry to trunnion.** The old name collided with an
+  established Joomla template framework, with a crate published on crates.io in
+  2020 that made `cargo install gantry` install someone else's tool, and, as of
+  two days before this change, with a release-governance CLI in this project's
+  own subject area. The crate, the binary, the library, the container path and
+  the `TRUNNION_` environment variables all move. Anyone on 0.1.1 changes the
+  image they pull and the command they run; nothing about the event schema, the
+  ledger format or a stored ledger changes, and a ledger written by 0.1.1
+  verifies unchanged.
+- **The proof documents are deliberately not renamed.** `docs/proof/00.md`
+  through `23.md` still say gantry, because they record what ran under the name
+  it had. `docs/proof/RENAME.md` says so and explains how to read them.
+
+### Fixed
+
+- **The laptop template declared an instruction-pack hash that was not its
+  own.** `templates/laptop/config/policy.json` pinned this repository's
+  `instructions/pack.md` rather than the pack the template ships, and nothing
+  recomputes it at `template init`, so every harness built from the template
+  opened with an instruction_pack divergence it had done nothing to earn. Found
+  while re-pinning hashes for the rename; it predates it.
 
 ## [0.1.1] - 2026-08-11
 
@@ -38,7 +60,7 @@ carries a proof document produced by running it.
   actually in force, so a kernel enforcing the filesystem half and nothing
   about egress cannot be recorded as enforcing both.
 - **Ships as a container.** `CLAUDE.md` opened by saying so and no Dockerfile
-  existed. `ghcr.io/mariano215/gantry` carries the binary and the starting
+  existed. `ghcr.io/mariano215/trunnion` carries the binary and the starting
   harness on a slim base, runs as an unprivileged user, and mounts the
   operator's harness and ledger rather than baking them: an image carrying a
   ledger would ship a signing identity every install shared.
@@ -51,13 +73,13 @@ carries a proof document produced by running it.
   verified once by hand in a container. Format, clippy and the suite now run on
   `ubuntu-24.04` on every change. The kernel is not pinned: a runner that
   enforces nothing fails the suite, which is the intended result.
-- **A workspace.** `gantry project add|list|remove|scan|remediate` registers a
+- **A workspace.** `trunnion project add|list|remove|scan|remediate` registers a
   set of repositories, local paths or git URLs, so one install answers for more
   than one project. A cloned repository is pinned to the commit resolved at add
   time, so a score can always be traced back to an exact revision. No
   credentials are stored: cloning shells out to git, which resolves whatever
   helper the operator already has, with terminal prompting off.
-- **Remediation.** `gantry project remediate <id>` turns each finding into a
+- **Remediation.** `trunnion project remediate <id>` turns each finding into a
   brief that pastes into any agent, quoting harness-kit's requirement, artifact
   and acceptance check verbatim rather than summarising them. The queue is
   ordered by business risk: for client-facing and regulated work the trust layer
@@ -71,15 +93,15 @@ carries a proof document produced by running it.
   scan actually looked for.
 - **`ScanReport` serialises.** The report is machine-readable, which is what the
   workspace sweep, the console and remediation read.
-- **A workspace console.** `gantry console` with no argument serves every
+- **A workspace console.** `trunnion console` with no argument serves every
   registered project: `/api/projects`, `/api/projects/:id/scan` and
-  `/api/projects/:id/remediate`. `gantry console <ledger-dir>` is unchanged.
+  `/api/projects/:id/remediate`. `trunnion console <ledger-dir>` is unchanged.
 - **The console has a face.** Redrawn to the design in
   `docs/design/console-a-loadbearing.html`, and the workspace routes above
   finally have a view: a project index, the twelve primitives as a rail
   resting on the minimum, the evidence behind every number, and the
   remediation queue in the contracts' own words and in the order the API
-  returns it. A front end that ranked that queue itself would be gantry
+  returns it. A front end that ranked that queue itself would be trunnion
   prescribing a level.
 
 ### Fixed
@@ -94,7 +116,7 @@ carries a proof document produced by running it.
   path segment `cache/<id>`, so `--id ../../thing` wrote a clone outside it.
 - **Removing a project no longer blocks re-adding it.** `remove` deliberately
   leaves the checkout, and the clone then refused a destination that already
-  existed, so remove-then-add failed on a directory gantry wrote itself.
+  existed, so remove-then-add failed on a directory trunnion wrote itself.
 - **A console with no ledger showed a verification alarm.** The boot path read
   any failure to read `/api/verify` as a verification failure, so a console
   started without a ledger opened on a red takeover about a log that does not

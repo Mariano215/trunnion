@@ -2,9 +2,9 @@
 //! publishing it on its title, and a skill that references a missing step
 //! fails at resolve time, not at run time. Uses the tracked fixture package.
 
-use gantry::skills::{delegate, SkillManifest};
 use std::fs;
 use std::path::{Path, PathBuf};
+use trunnion::skills::{delegate, SkillManifest};
 
 fn repo_path(rel: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)

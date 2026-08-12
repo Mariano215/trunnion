@@ -156,7 +156,7 @@ impl Pinning {
 /// unobserved mode records "unobserved" and does not diverge: the absence
 /// of a signal is written down, never guessed into a value. The observer is
 /// the CLAUDE_PERMISSION_MODE environment variable, set by whatever hook or
-/// wrapper invokes gantry inside a session.
+/// wrapper invokes trunnion inside a session.
 pub fn permission_mode_check(
     observed: Option<&str>,
     settings_text: Option<&str>,
@@ -202,7 +202,7 @@ impl GatewayRun {
         let authority = pin.authority(profile, &policy_version)?;
         let actor = json!({
             "type": "agent",
-            "id": "agent:gantry-run",
+            "id": "agent:trunnion-run",
             "identity_source": "local",
             "rung": "assisted",
         });
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn file_hash_pins_bytes() {
-        let dir = std::env::temp_dir().join(format!("gantry-gw-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("trunnion-gw-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join("pack.md");
         std::fs::write(&p, b"instruction pack v1").unwrap();

@@ -218,7 +218,7 @@ mod tests {
     use super::*;
 
     fn corpus(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("gantry-graph-{}-{name}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("trunnion-graph-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d

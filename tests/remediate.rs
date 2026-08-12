@@ -8,9 +8,9 @@
 //! disagrees with the thing it was ported from is the port being wrong, and
 //! this is the test that says so.
 
-use gantry::remediate::{self, KEYS};
-use gantry::scan::{Finding, ScanReport};
-use gantry::workspace::Risk;
+use trunnion::remediate::{self, KEYS};
+use trunnion::scan::{Finding, ScanReport};
+use trunnion::workspace::Risk;
 
 /// Produced by, in harness-kit:
 ///
@@ -213,7 +213,7 @@ fn nothing_is_prescribed_above_the_level_the_contracts_carry() {
     let doc = remediate::document(&report, Risk::Internal, "example").unwrap();
     assert!(doc.contains("0 gap(s)"), "{doc}");
     assert!(
-        doc.contains("run gantry score over a ledger"),
+        doc.contains("run trunnion score over a ledger"),
         "the empty state names what actually moves the number: {doc}"
     );
 }

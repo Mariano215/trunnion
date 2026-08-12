@@ -5,7 +5,7 @@
 # Run from the repository root after cargo build. The repair turn needs a
 # model; it uses the local ollama endpoint in config/providers.json.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof05.XXXXXX)
 echo "workdir: $WORK"
 

@@ -15,7 +15,7 @@
       "decision_event": "ev-01JQ0021ZK9F3TQW21",
       "state": "waiting",
       "releases_next_call": false,
-      "approve_command": "gantry approve /tmp/gantry/ledger run-1754380000000-req-7 <approver>",
+      "approve_command": "trunnion approve /tmp/trunnion/ledger run-1754380000000-req-7 <approver>",
       "grants": []
     },
     {
@@ -33,7 +33,7 @@
       "decision_event": "ev-01JQ0010ZK9F3TQW10",
       "state": "refused",
       "releases_next_call": false,
-      "approve_command": "gantry approve /tmp/gantry/ledger run-1754380000000-req-9 <approver>",
+      "approve_command": "trunnion approve /tmp/trunnion/ledger run-1754380000000-req-9 <approver>",
       "grants": [
         {
           "grant_id": "ev-01JQ0011ZK9F3TQW11",
@@ -63,7 +63,7 @@
       "decision_event": "ev-01JQ0021ZK9F3TQW21",
       "state": "released",
       "releases_next_call": true,
-      "approve_command": "gantry approve /tmp/gantry/ledger run-1754380000000-req-11 <approver>",
+      "approve_command": "trunnion approve /tmp/trunnion/ledger run-1754380000000-req-11 <approver>",
       "grants": [
         {
           "grant_id": "run-1754380099000-0",
@@ -82,5 +82,5 @@
   "blocked": 2,
   "released": 1,
   "approvers": "any",
-  "ledger": "/tmp/gantry/ledger"
+  "ledger": "/tmp/trunnion/ledger"
 }

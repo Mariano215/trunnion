@@ -28,13 +28,13 @@
       "observed_by": "gateway.instruction_hash"
     },
     "host_permissions": {
-      "declared": "sha256:5a22b9dde36481e31c8adb73457aeda17f2b09c4dc7d095f59be9e6373686fa5",
+      "declared": "sha256:faefb9e0fd20616d7beef9824b3dcb69817821289fc52ef9a3ad0e4c5c51ec5f",
       "observed_by": "hook.settings_hash"
     },
     "attestation": {
       "declared": "ed25519",
       "key_id": "ed25519:407d778d0d4ca380",
-      "seed_env": "GANTRY_ACTOR_SEED",
+      "seed_env": "TRUNNION_ACTOR_SEED",
       "seed_file": "actor-key-fixture.seed",
       "observed_by": "event.attestation.key_id"
     },

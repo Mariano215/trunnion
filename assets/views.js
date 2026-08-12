@@ -137,7 +137,7 @@ export function eventDetail(box, ev) {
 // every word of remediation off /api/projects/:id/remediate, which quotes the
 // contracts. Nothing on this page is computed from a primitive's name or
 // ranked by a table this file holds, because a console that ordered the work
-// itself would be prescribing a level, which is the one thing gantry does not
+// itself would be prescribing a level, which is the one thing trunnion does not
 // do.
 
 // A static read resolves three states, 0, 2 and 3: it awards no 1, because
@@ -230,7 +230,7 @@ function liftOrder(id, gaps) {
     ol.append(el('li', {}, el('div', {},
       el('h4', {}, g.name),
       el('p', {}, `Raise ${g.key} from ${g.current} to ${g.target}. ${g.gap}`),
-      commandBox(`gantry project remediate ${id} --primitive ${g.primitive}`))));
+      commandBox(`trunnion project remediate ${id} --primitive ${g.primitive}`))));
   }
   return ol;
 }
@@ -247,7 +247,7 @@ export async function workspace(host, route) {
   if (projects.length === 0) {
     clear(body).append(panel('No project is registered', { sub: 'the workspace registry is empty' },
       el('p', {}, 'A workspace is a set of repositories this console scans. Register one and it appears here.'),
-      commandBox('gantry project add <path-or-git-url>')));
+      commandBox('trunnion project add <path-or-git-url>')));
     return;
   }
 
@@ -268,7 +268,7 @@ export async function workspace(host, route) {
         ['last scan', mono(current.last_scan || 'never')],
       ]),
       el('p', { class: 'stat-note', style: 'margin:10px 0 0' },
-        'Open this ledger to read what ran: ', mono(`gantry console ${current.ledger}`),
+        'Open this ledger to read what ran: ', mono(`trunnion console ${current.ledger}`),
         '. A file says a check is wired; only a run says it fired, and telemetry is the only way any primitive here moves above ', String(ceiling), '.'))
     : panel('Chain', { sub: 'append only, signed head, verifiable offline' },
       el('div', { class: 'chain-empty' },
@@ -277,7 +277,7 @@ export async function workspace(host, route) {
           el('b', {}, 'No ledger. Static evidence only.'),
           'A file says a check is wired. Only a run says it fired. Route this project through the gateway and the broker and every tool call, policy verdict and approval lands in a tamper-evident log, which is the only way any primitive here moves above ',
           String(ceiling), '. This console reads one when it is started against it.',
-          commandBox('gantry console <ledger-dir>'))));
+          commandBox('trunnion console <ledger-dir>'))));
 
   clear(body).append(
     index,
@@ -1004,7 +1004,7 @@ function holdDetail(box, h, approvers) {
       : el('div', {},
         commandBox(h.approve_command),
         el('p', { class: 'stat-note', style: 'margin:8px 0 0' },
-          'Run it from the harness root: gantry approve reads config/policy.json from the working directory. ',
+          'Run it from the harness root: trunnion approve reads config/policy.json from the working directory. ',
           approvers === 'any'
             ? 'This profile permits any approver, so replace the placeholder with your own identity; approving your own call is permitted here and recorded as self_approved on the approval.use.'
             : 'This profile names its approvers, and a grant from anyone else releases nothing.',
@@ -1109,14 +1109,14 @@ export async function verify(host) {
       rerun.disabled = true;
       rerun.textContent = 'verifying…';
       try {
-        await window.gantryConsole.runVerify();
+        await window.trunnionConsole.runVerify();
       } finally {
         rerun.disabled = false;
         rerun.textContent = 'run verification again';
       }
       // A ledger that just went broken takes the interface over again, unless
       // the reader already dismissed a takeover this session.
-      if ((ledgerBroken() || state.verifyError) && !state.acknowledged) window.gantryConsole.renderRoute();
+      if ((ledgerBroken() || state.verifyError) && !state.acknowledged) window.trunnionConsole.renderRoute();
       else paint();
     } }, 'run verification again');
 

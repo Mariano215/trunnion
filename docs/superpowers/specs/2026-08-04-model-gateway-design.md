@@ -41,7 +41,7 @@ asserted.
 - One adapter: OpenAI-compatible `POST {base_url}/chat/completions`,
   blocking HTTP via `ureq` with rustls. First dependency with network
   capability; noted in `docs/DEPENDENCIES.md` with the reason in the commit.
-- `gantry run --provider <name>` in `src/main.rs`. Executes a fixed
+- `trunnion run --provider <name>` in `src/main.rs`. Executes a fixed
   two-turn workload against the named provider, writing `run.open`, one
   `model.call` per turn, `run.seal` into a fresh ledger directory.
   Provider definitions come from a small tracked config file.

@@ -284,7 +284,8 @@ impl SensorRun {
         let instruction_pack = authority["instruction_version"].clone();
         let settings_hash = authority["settings_hash"].clone();
         let core = RunCore::open(ledger, actor, authority);
-        let sandbox = Sandbox::per_run(&crate::sandbox::unique_run_dir("gantry-sensor-run"), &[])?;
+        let sandbox =
+            Sandbox::per_run(&crate::sandbox::unique_run_dir("trunnion-sensor-run"), &[])?;
         let mut run = SensorRun {
             core,
             sandbox,
@@ -352,7 +353,8 @@ mod tests {
     use super::*;
 
     fn sandbox(name: &str) -> Sandbox {
-        let dir = std::env::temp_dir().join(format!("gantry-sensor-{}-{name}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("trunnion-sensor-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         Sandbox::per_run(&dir, &[]).unwrap()
     }

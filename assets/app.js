@@ -29,7 +29,7 @@ function applyTheme(t) {
   if (t === 'auto') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', t);
   themeVal.textContent = t;
-  try { localStorage.setItem('gantry-theme', t); } catch { /* private mode, the default still works */ }
+  try { localStorage.setItem('trunnion-theme', t); } catch { /* private mode, the default still works */ }
 }
 
 function cycleTheme() {
@@ -39,7 +39,7 @@ function cycleTheme() {
 
 themeBtn.addEventListener('click', cycleTheme);
 let stored = 'auto';
-try { stored = localStorage.getItem('gantry-theme') || 'auto'; } catch { /* ignore */ }
+try { stored = localStorage.getItem('trunnion-theme') || 'auto'; } catch { /* ignore */ }
 applyTheme(THEMES.includes(stored) ? stored : 'auto');
 
 // ---------- routing ----------
@@ -272,7 +272,7 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- boot ----------
 
-window.gantryConsole = { runVerify, renderRoute };
+window.trunnionConsole = { runVerify, renderRoute };
 
 await runVerify();
 loadHeadChip();

@@ -1,4 +1,4 @@
-# Gantry
+# Trunnion
 
 An LLM-agnostic control plane for agentic engineering. Implements the twelve
 harness primitives as running services. Ships as a container. Scores itself.
@@ -15,7 +15,7 @@ enforces it. A rule added here without an enforcing check is a defect in this
 file, not a standard.
 
 Rules with no enforcement yet are marked `[UNENFORCED]`. That marker is a
-work item, and `gantry scan` on this repo is expected to report it.
+work item, and `trunnion scan` on this repo is expected to report it.
 
 ## Architecture invariants
 

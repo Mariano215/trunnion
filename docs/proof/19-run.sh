@@ -20,7 +20,7 @@
 # and the released publish command names a remote that does not exist, so it
 # fails locally and reaches no network.
 set -e
-BIN=./target/debug/gantry
+BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof19.XXXXXX)
 PUBLISH='git push gantry-proof19-no-such-remote HEAD'
 THRESHOLD=$(jq -r '.trust_budget.promotion.runs_at_rung' config/policy.json)

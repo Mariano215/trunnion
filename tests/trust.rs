@@ -3,17 +3,17 @@
 //! failure, and the whole arc reads back out of the ledger. Uses a small
 //! demo policy so the threshold is reachable in a test.
 
-use gantry::gateway::Pinning;
-use gantry::ledger::{self, Ledger};
-use gantry::policy::{Policy, Rung};
-use gantry::sensor::Sensor;
-use gantry::trust::{narrate, Orchestrator, TrustState};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
+use trunnion::gateway::Pinning;
+use trunnion::ledger::{self, Ledger};
+use trunnion::policy::{Policy, Rung};
+use trunnion::sensor::Sensor;
+use trunnion::trust::{narrate, Orchestrator, TrustState};
 
 fn workdir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("gantry-trust-it-{}-{name}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("trunnion-trust-it-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
