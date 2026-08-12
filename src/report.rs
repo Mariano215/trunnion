@@ -17,7 +17,12 @@ use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
-/// One finding, with the bundles that cover it.
+/// One finding, with the bundles that cover it. Each bundle travels with the
+/// subject it commits to, because an envelope carries `subject_hash` and not
+/// the content: a recipient holding the bundle alone can prove an entry was in
+/// the log and cannot tell whether the sentence printed beside it is that
+/// entry. Shipping the subject closes that, and `verify-inclusion` recomputes
+/// the hash rather than taking the pairing on trust.
 struct Cited {
     /// Its number in the document, assigned in log order.
     id: String,
@@ -25,9 +30,9 @@ struct Cited {
     /// outside this document.
     event_id: String,
     subject: Value,
-    /// (filename stem, bundle) pairs: the finding itself first, then the
-    /// events it cited, in the order it cited them.
-    bundles: Vec<(String, InclusionBundle)>,
+    /// (filename stem, bundle, subject) triples: the finding itself first,
+    /// then the events it cited, in the order it cited them.
+    bundles: Vec<(String, InclusionBundle, Value)>,
 }
 
 #[derive(Debug)]
@@ -60,7 +65,7 @@ pub fn write(ledger_dir: &Path, out_dir: &Path) -> Result<Report, Fault> {
         // one report is worse than no name at all.
         let fid = format!("f-{}", cited.len() + 1);
         let event_id = event["id"].as_str().unwrap_or("(unrecorded)").to_string();
-        let mut bundles = vec![(format!("{fid}.finding"), ledger.prove(at)?)];
+        let mut bundles = vec![(format!("{fid}.finding"), ledger.prove(at)?, subject.clone())];
         for (n, ev_id) in subject["evidence"]
             .as_array()
             .map(Vec::as_slice)
@@ -83,7 +88,11 @@ pub fn write(ledger_dir: &Path, out_dir: &Path) -> Result<Report, Fault> {
                 .as_str()
                 .unwrap_or("event")
                 .replace('.', "-");
-            bundles.push((format!("{fid}.{n}-{kind}"), ledger.prove(evidence_at)?));
+            bundles.push((
+                format!("{fid}.{n}-{kind}"),
+                ledger.prove(evidence_at)?,
+                events[evidence_at]["_subject"].clone(),
+            ));
         }
         cited.push(Cited {
             id: fid,
@@ -103,15 +112,24 @@ pub fn write(ledger_dir: &Path, out_dir: &Path) -> Result<Report, Fault> {
 
     let mut written = 0usize;
     for finding in &cited {
-        for (stem, bundle) in &finding.bundles {
-            let path = proofs_dir.join(format!("{stem}.json"));
+        for (stem, bundle, subject) in &finding.bundles {
             let text = serde_json::to_string_pretty(bundle).map_err(|e| {
                 Fault::new(
                     format!("an inclusion bundle did not serialise: {e}"),
                     "report this as a bug; InclusionBundle is serialisable by construction",
                 )
             })?;
-            write_file(&path, &text)?;
+            write_file(&proofs_dir.join(format!("{stem}.json")), &text)?;
+            let subject_text = serde_json::to_string_pretty(subject).map_err(|e| {
+                Fault::new(
+                    format!("a subject did not serialise: {e}"),
+                    "report this as a bug; a subject read off the ledger is JSON already",
+                )
+            })?;
+            write_file(
+                &proofs_dir.join(format!("{stem}.subject.json")),
+                &subject_text,
+            )?;
             written += 1;
         }
     }
@@ -249,12 +267,17 @@ fn document(
             finding.event_id,
         ));
         out.push_str("Check it:\n\n```\n");
-        for (stem, _) in &finding.bundles {
+        for (stem, _, _) in &finding.bundles {
             out.push_str(&format!(
-                "trunnion ledger verify-inclusion proofs/{stem}.json ledger.pub\n"
+                "trunnion ledger verify-inclusion proofs/{stem}.json ledger.pub proofs/{stem}.subject.json\n"
             ));
         }
-        out.push_str("```\n\n");
+        out.push_str(
+            "```\n\nEach line proves two things: that the entry was in the signed log, and that\n\
+             the subject file beside it is the content that entry committed to. Without the\n\
+             third argument the command answers only the first, which is a weaker statement\n\
+             than this document needs.\n\n",
+        );
     }
 
     out.push_str("## What the harness refused during this audit\n\n");

@@ -18,13 +18,21 @@ the diff to find out whether it mattered.
   travels with an inclusion bundle for the claim, for the read it rests on and
   for the model call that produced it, beside the key they check against.
   Holding only that directory and the binary, a third party runs
-  `trunnion ledger verify-inclusion proofs/f-1.finding.json ledger.pub` with no
-  log, no config and no network. The document states above the findings that a
+  `trunnion ledger verify-inclusion proofs/f-1.finding.json ledger.pub
+  proofs/f-1.finding.subject.json` with no log, no config and no network. The document states above the findings that a
   proof shows what was read, asked and unchanged, and never that the finding is
   true. No score moves: nothing is credited for making a claim, because a level
   that counted claims would pay for volume. The workload that produces one is
   [assay](https://github.com/Mariano215/assay), which runs the same audit six
   times adding one control per stage. See `docs/proof/25.md`.
+- **`trunnion ledger verify-inclusion` takes the subject as a third argument.**
+  An envelope carries `subject_hash` and not the subject, so the two-argument
+  form proves an entry was in the log and says nothing about whether the
+  content a reader is holding is that entry. With a subject file it recomputes
+  the hash and refuses a mismatch, naming the two states apart: the entry is
+  genuine and this copy of its content is not. `trunnion report` now ships the
+  subject beside every bundle and prints the three-argument form, because until
+  it did, "check it" in a report pointed at a proof of the wrong thing.
 - **An operations view: the whole harness on one screen.** Nine views each
   answered one question and none answered "is this healthy right now". The new
   tenth view carries counts for the window, tool-call latency, a live event

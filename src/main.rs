@@ -29,7 +29,7 @@ const USAGE: &str = "usage:
   trunnion ledger append <dir>                       (NewEvent JSON on stdin)
   trunnion ledger verify <dir>
   trunnion ledger prove <dir> <index>
-  trunnion ledger verify-inclusion <bundle.json> <pubkey-file>
+  trunnion ledger verify-inclusion <bundle.json> <pubkey-file> [subject.json]
   trunnion ledger consistency <dir> <m>
   trunnion ledger verify-consistency <bundle.json> <pubkey-file>
   trunnion ledger anchor <dir> <anchor-file>          (outside <dir>)
@@ -189,27 +189,10 @@ fn run() -> Result<i32, Fault> {
             Ok(0)
         }
         ["ledger", "verify-inclusion", bundle_path, key_path] => {
-            let bundle_text = read_file(bundle_path)?;
-            let pub_key = read_file(key_path)?;
-            let bundle: InclusionBundle = serde_json::from_str(&bundle_text).map_err(|e| {
-                Fault::new(
-                    format!("{bundle_path} does not parse as an inclusion bundle: {e}"),
-                    "regenerate it with trunnion ledger prove <dir> <index>",
-                )
-            })?;
-            match ledger::verify_bundle(&bundle, &pub_key) {
-                Ok(()) => {
-                    println!(
-                        "inclusion verified: entry {} (id {}) under signed head size {}",
-                        bundle.index, bundle.envelope.id, bundle.head.size
-                    );
-                    Ok(0)
-                }
-                Err(fault) => {
-                    println!("{fault}");
-                    Ok(1)
-                }
-            }
+            verify_inclusion(bundle_path, key_path, None)
+        }
+        ["ledger", "verify-inclusion", bundle_path, key_path, subject_path] => {
+            verify_inclusion(bundle_path, key_path, Some(subject_path))
         }
         ["ledger", "consistency", dir, m] => {
             let m = parse_index(m)?;
@@ -406,7 +389,7 @@ fn run() -> Result<i32, Fault> {
                 out_dir, out.findings, out.bundles, out.refusals
             );
             println!(
-                "check one without this ledger: trunnion ledger verify-inclusion {out_dir}/proofs/<name>.json {out_dir}/ledger.pub"
+                "check one without this ledger: trunnion ledger verify-inclusion {out_dir}/proofs/<name>.json {out_dir}/ledger.pub {out_dir}/proofs/<name>.subject.json"
             );
             Ok(0)
         }
@@ -602,6 +585,67 @@ fn drift_scan(ledger_dir: &str, policy_path: &str) -> Result<i32, Fault> {
 /// model asks to run comes back through the broker. This is the shape the
 /// prompt-injection proof needs, because the injection has to actually
 /// reach a model for the denial to mean anything.
+/// Check an inclusion bundle, and with a subject file, check that the content
+/// a reader is holding is the content the proven entry committed to.
+///
+/// Without that second half the command answers a narrower question than the
+/// one a recipient is asking. A bundle carries the envelope, and an envelope
+/// carries `subject_hash` rather than the subject itself, so `verify-inclusion
+/// bundle key` proves an entry was in the log and says nothing about whether
+/// the sentence printed beside it in a report is that entry's content. A
+/// report that told a reader to run it and treat the result as checking the
+/// finding would be pointing at a proof of the wrong thing.
+fn verify_inclusion(
+    bundle_path: &str,
+    key_path: &str,
+    subject_path: Option<&str>,
+) -> Result<i32, Fault> {
+    let bundle_text = read_file(bundle_path)?;
+    let pub_key = read_file(key_path)?;
+    let bundle: InclusionBundle = serde_json::from_str(&bundle_text).map_err(|e| {
+        Fault::new(
+            format!("{bundle_path} does not parse as an inclusion bundle: {e}"),
+            "regenerate it with trunnion ledger prove <dir> <index>",
+        )
+    })?;
+    if let Err(fault) = ledger::verify_bundle(&bundle, &pub_key) {
+        println!("{fault}");
+        return Ok(1);
+    }
+    let subject_note = match subject_path {
+        None => String::new(),
+        Some(path) => {
+            let text = read_file(path)?;
+            let subject: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+                Fault::new(
+                    format!("{path} does not parse as JSON: {e}"),
+                    "pass the subject file that travelled with the bundle, unedited",
+                )
+            })?;
+            let computed = trunnion::event::subject_hash(&subject)?;
+            if computed != bundle.envelope.subject_hash {
+                println!(
+                    "{}",
+                    Fault::new(
+                        format!(
+                            "{path} is not the content entry {} committed to: it hashes to {computed}, the entry names {}",
+                            bundle.index, bundle.envelope.subject_hash
+                        ),
+                        "the entry is genuine and this content is not what it recorded; ask the sender for the subject file as the report was written, and read nothing from this copy",
+                    )
+                );
+                return Ok(1);
+            }
+            format!(", and {path} is the content it committed to")
+        }
+    };
+    println!(
+        "inclusion verified: entry {} (id {}) under signed head size {}{subject_note}",
+        bundle.index, bundle.envelope.id, bundle.head.size
+    );
+    Ok(0)
+}
+
 /// The three classes an audit may report, from `docs/CONCEPT.md`. The set is
 /// closed in code rather than in the pack, because a pack is a request and a
 /// model may answer with anything: a class nothing here recognises is refused

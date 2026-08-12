@@ -88,13 +88,32 @@ fn a_finding_travels_with_a_bundle_that_verifies_against_the_key_beside_it() {
         });
     }
 
+    // An envelope carries subject_hash and not the subject, so a bundle alone
+    // proves an entry existed and says nothing about whether the sentence
+    // printed beside it is that entry. The subject travels with it and the
+    // hash is recomputed, or "check it" points at a proof of the wrong thing.
+    for stem in ["f-1.finding", "f-1.0-tool-result"] {
+        let subject_path = out.join(format!("proofs/{stem}.subject.json"));
+        let subject: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&subject_path).unwrap()).unwrap();
+        let bundle: InclusionBundle = serde_json::from_str(
+            &fs::read_to_string(out.join(format!("proofs/{stem}.json"))).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            trunnion::event::subject_hash(&subject).unwrap(),
+            bundle.envelope.subject_hash,
+            "{stem} ships a subject the proven entry did not commit to"
+        );
+    }
+
     let text = fs::read_to_string(out.join("report.md")).unwrap();
     assert!(
         text.contains("does not show that the finding is true"),
         "the document has to say what the proof is not, or a signature under a guess reads as a signature under a fact"
     );
     assert!(
-        text.contains("trunnion ledger verify-inclusion proofs/f-1.finding.json ledger.pub"),
+        text.contains("trunnion ledger verify-inclusion proofs/f-1.finding.json ledger.pub proofs/f-1.finding.subject.json"),
         "the recipient is told the exact command, or the proof is decoration: {text}"
     );
     let scope = text
