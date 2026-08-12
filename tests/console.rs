@@ -936,3 +936,125 @@ fn the_workspace_routes_answer_without_a_ledger_and_the_log_routes_say_why_they_
 
     std::env::remove_var("TRUNNION_HOME");
 }
+
+// -- slice 24: the operations aggregate -------------------------------------
+
+/// A ledger whose `tool.result` events carry a duration, so the percentile
+/// branch has something to measure. `n` of them, timestamped now, because the
+/// default window is a claim about the last 24 hours and a fixture dated last
+/// week would test the window rather than the percentile.
+fn latency_ledger(name: &str, n: u64) -> PathBuf {
+    let dir = workdir(name).join("ledger");
+    let mut ledger = Ledger::init(&dir).unwrap();
+    let now = trunnion::gateway::rfc3339_now();
+    ledger
+        .append(event(
+            "run-now",
+            0,
+            &now,
+            "run.open",
+            json!({"workload": "latency", "restored_checkpoint": null}),
+        ))
+        .unwrap();
+    for i in 0..n {
+        ledger
+            .append(event(
+                "run-now",
+                i + 1,
+                &now,
+                "tool.result",
+                // A spread rather than a constant, so a percentile that
+                // silently returned the mean or the first sample would differ
+                // from the one this asserts.
+                json!({"outcome": "ok", "duration_ms": i * 10}),
+            ))
+            .unwrap();
+    }
+    dir
+}
+
+#[test]
+fn a_kind_the_ledger_never_carried_is_null_and_a_kind_with_none_in_the_window_is_zero() {
+    let ledger = fixture_ledger("ops-absent");
+    let addr = serve(&ledger);
+    let all = get(addr, "/api/operations?window=all").json();
+
+    // The fixture carries policy.decision but no approval at all. Those are
+    // different states and the difference is the whole point: zero means the
+    // walk ran and found none, null means the producer never wrote one, and
+    // rendering the second as the first is a dashboard claiming a control was
+    // exercised and clean when it was never exercised.
+    assert_eq!(all["counts"]["holds"]["count"], json!(0));
+    assert_eq!(all["counts"]["approvals"]["count"], Value::Null);
+    assert_eq!(all["counts"]["denials"]["count"], json!(1));
+
+    // Every number names where it came from, so a tile can print the path.
+    assert_eq!(all["counts"]["runs_opened"]["source"], json!("run.open"));
+
+    // The same absent rule reaches the topology, so a node nobody has ever
+    // produced an event for is not drawn as a live node reading zero.
+    let nodes = all["topology"].as_array().unwrap();
+    let sensors = nodes.iter().find(|n| n["node"] == "sensor bus").unwrap();
+    assert_eq!(
+        sensors["events"],
+        Value::Null,
+        "the fixture carries no sensor.verdict"
+    );
+    let broker = nodes.iter().find(|n| n["node"] == "tool broker").unwrap();
+    assert!(broker["events"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn the_window_is_a_claim_about_now_so_an_old_ledger_reports_zero_and_not_its_totals() {
+    // The fixture is dated 2026-08-05. Under the default window the honest
+    // answer is that nothing happened in the last 24 hours, and a dashboard
+    // that showed the lifetime totals under a "24h" label would be describing
+    // a different question than the one on screen.
+    let ledger = fixture_ledger("ops-window");
+    let addr = serve(&ledger);
+    let day = get(addr, "/api/operations").json();
+    assert_eq!(day["window"], json!("24h"));
+    assert_eq!(day["scanned"], json!(0));
+    assert_eq!(day["counts"]["runs_opened"]["count"], json!(0));
+    // Still not null: the kind exists on the log, so this is a real zero.
+    assert_eq!(day["counts"]["denials"]["count"], json!(0));
+
+    let all = get(addr, "/api/operations?window=all").json();
+    assert!(all["scanned"].as_u64().unwrap() > 0);
+    assert_eq!(all["total_events"], all["scanned"]);
+}
+
+#[test]
+fn a_percentile_under_the_sample_floor_is_null_and_the_sample_count_travels_with_it() {
+    let thin = serve(&latency_ledger("ops-thin", 4));
+    let g = get(thin, "/api/operations").json()["gate_latency"].clone();
+    assert_eq!(g["samples"], json!(4));
+    assert_eq!(g["p95"], Value::Null, "four samples do not make a p95");
+    assert_eq!(g["p50"], Value::Null);
+    // The slowest call is a fact about one call and needs no distribution, so
+    // it is reported even when the percentiles are not.
+    assert_eq!(g["max"], json!(30));
+    assert_eq!(g["source"], json!("tool.result.duration_ms"));
+
+    let thick = serve(&latency_ledger("ops-thick", 20));
+    let g = get(thick, "/api/operations").json()["gate_latency"].clone();
+    assert_eq!(g["samples"], json!(20));
+    // Nearest rank over 0,10,..,190: p95 is the ceil(0.95*20)=19th sample.
+    assert_eq!(g["p95"], json!(180));
+    assert_eq!(g["p50"], json!(90));
+}
+
+#[test]
+fn a_window_this_route_does_not_read_is_refused_rather_than_quietly_defaulted() {
+    let ledger = fixture_ledger("ops-badwindow");
+    let addr = serve(&ledger);
+    let r = get(addr, "/api/operations?window=lifetime");
+    // Falling through to 24h would answer a question nobody asked and label it
+    // with the window they did ask for.
+    assert_eq!(r.status, 400, "body: {}", r.body);
+    assert!(
+        r.body.contains("24h"),
+        "the fix names the windows: {}",
+        r.body
+    );
+}

@@ -383,6 +383,71 @@ a name on the ledger that nothing stands behind, which is a different claim
 from the one the approval path makes. The rule at the top of this file applies
 here with no exception.
 
+## `GET /api/operations`
+
+The aggregate the operations view reads: one window of the log reduced to what
+one screen shows.
+
+It exists as a route rather than as browser arithmetic for one reason.
+`/api/events` answers at most 1000 rows, so a front end counting denials or
+taking a percentile over a page would be describing that page while the screen
+reads as a statement about the whole log. That is the same failure this document
+already forbids for a browser-side filter count, and a dashboard is where it
+would do the most damage.
+
+| Parameter | Effect |
+|---|---|
+| `window` | `24h` (default), `7d`, or `all`. Any other value is 400 with a Fault naming the three, never a quiet fall back to the default |
+
+The window is measured against the request time, not against the newest row, so
+"runs in the last 24 hours" is a claim about now. A ledger nobody has written to
+today reports zero, which is the true answer and the one a stale dashboard
+hides.
+
+```json
+{
+  "window": "24h",
+  "since": "2026-08-11T13:00:00.000Z",
+  "scanned": 29,
+  "total_events": 29,
+  "counts": {
+    "runs_opened": {"count": 4, "source": "run.open"},
+    "runs_sealed": {"count": 4, "source": "run.seal"},
+    "denials": {"count": 1, "source": "policy.decision where verdict is deny"},
+    "holds": {"count": 0, "source": "policy.decision where verdict is hold"},
+    "approvals": {"count": null, "source": "approval"}
+  },
+  "gate_latency": {"p50": 90, "p95": 180, "max": 190, "samples": 20, "floor": 20, "source": "tool.result.duration_ms"},
+  "model_latency": {"p50": null, "p95": null, "max": null, "samples": 0, "floor": 20, "source": "model.call.latency_ms"},
+  "topology": [
+    {"node": "tool broker", "kinds": ["tool.register", "tool.request", "tool.result"], "events": 16},
+    {"node": "sensor bus", "kinds": ["sensor.verdict"], "events": null}
+  ]
+}
+```
+
+Three rules the shape carries, so no caller can get them wrong:
+
+- **Absent is not zero.** A `count` is null when the ledger has never carried
+  that kind at all, and a number when it has. Zero means the walk ran and found
+  none in the window; null means the producer never wrote one. The same rule
+  applies to a topology node's `events`. A screen that renders the two
+  identically claims a control was exercised and clean when it was never
+  exercised.
+- **A percentile under `floor` is null.** `samples` travels with it either way.
+  A p95 over four calls names one sample and dresses it as a distribution.
+  `max` is reported regardless, because the slowest call that happened is a
+  fact about one call and needs no distribution behind it.
+- **Every count names its source**, the kind and field it came from, so a tile
+  can print the path behind its number. A number with no path is an opinion,
+  which `docs/PRIMITIVES.md` refuses.
+
+`topology` carries nodes and counts and no edges. An edge asserts a handoff, and
+the only thing that may assert one is a producer recording a peer, which is
+`/api/events` and the trace view. The operations view draws its edges from a
+declared layout labelled as architecture on screen, and
+`tests/invariants.rs` holds that they stay declared.
+
 ## `GET /api/verify`
 
 A full verification on the request. This is the expensive route; the front end

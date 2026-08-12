@@ -124,3 +124,87 @@ fn nothing_that_produces_a_score_reads_the_vendored_contracts() {
         "the vendored contracts are read in one place, src/remediate.rs, and these read them: {readers:?}"
     );
 }
+
+/// The operations topology draws declared architecture, and must not quietly
+/// become a second claim about observed flow.
+///
+/// The trace view is the one picture allowed to assert a handoff, and it may
+/// only do so where a producer recorded a peer. The operations topology exists
+/// for a different job: it shows the shape of the system with live counts on
+/// the nodes. That is honest exactly as long as its edges stay a fixed table
+/// and never key off an event kind, because an arrow derived from a kind would
+/// be an inference wearing the same ink as the trace view's observations.
+///
+/// So: the edge list is a declared constant of node-name pairs, every endpoint
+/// resolves to a declared node, and the panel says on screen that the edges are
+/// declared. The counts are the only part read from the log, and they arrive
+/// from `/api/operations` already computed.
+#[test]
+fn the_operations_topology_declares_its_edges_and_derives_none_from_an_event_kind() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let src = fs::read_to_string(root.join("assets/views.js")).unwrap();
+
+    let nodes_block = src
+        .split_once("const TOPO_NODES = {")
+        .expect("views.js declares TOPO_NODES, the topology's declared layout")
+        .1
+        .split_once("};")
+        .expect("TOPO_NODES is a closed object literal")
+        .0;
+    let node_names: Vec<String> = nodes_block
+        .lines()
+        .filter_map(|l| l.split_once('\'').and_then(|(_, r)| r.split_once('\'')))
+        .map(|(name, _)| name.to_string())
+        .collect();
+    assert!(
+        node_names.len() >= 2,
+        "TOPO_NODES is empty or unparsed, so this test asserted nothing"
+    );
+
+    let edges_block = src
+        .split_once("const TOPO_EDGES = [")
+        .expect("views.js declares TOPO_EDGES, the one place an edge comes from")
+        .1
+        .split_once("];")
+        .expect("TOPO_EDGES is a closed array literal")
+        .0;
+    let mut edges = 0;
+    for line in edges_block.lines().filter(|l| l.contains('[')) {
+        edges += 1;
+        // Both endpoints are declared node names. An entry naming an event
+        // kind, a subject field or anything read from the log would mean the
+        // picture had started deriving its arrows from the record.
+        let named: Vec<&str> = line
+            .split('\'')
+            .enumerate()
+            .filter(|(i, _)| i % 2 == 1)
+            .map(|(_, s)| s)
+            .collect();
+        assert_eq!(
+            named.len(),
+            2,
+            "every edge is a pair of declared node names: {line}"
+        );
+        for end in named {
+            assert!(
+                node_names.iter().any(|n| n == end),
+                "edge endpoint {end:?} is not a declared node, so the layout and the edge table disagree: {line}"
+            );
+            assert!(
+                !end.contains('.'),
+                "edge endpoint {end:?} looks like an event kind, and an edge derived from a kind is an inference the trace view exists to refuse"
+            );
+        }
+    }
+    assert!(
+        edges > 0,
+        "TOPO_EDGES is empty, so this test asserted nothing"
+    );
+
+    // Said on screen, not only in the source, because the reader is who the
+    // distinction protects.
+    assert!(
+        src.contains("derived from the record"),
+        "the topology panel states how many of its edges came from the log, which is none and is printed anyway"
+    );
+}

@@ -522,6 +522,34 @@ indistinguishable from a use and the count would be wrong by one.
   the same question is a race with the browser's virtual clock and a flaky gate
   is one people learn to skip.
   `[UNENFORCED]` `ci/console-open-row-survives-poll`
+- **One screen may summarise the log, and a summary is where a number with no
+  evidence behind it is cheapest to print.** The operations view puts the whole
+  harness on one page: counts for the window, tool-call latency, a live event
+  tail, the twelve primitives and a topology. Every number comes from
+  `/api/operations`, which aggregates over the whole ledger, because
+  `/api/events` caps at 1000 rows and a browser counting denials or taking a
+  percentile over that page would be describing the page while the tile reads
+  as a statement about the log. Two distinctions the shape carries rather than
+  the view: a count is null when the ledger has never carried that kind and a
+  number when it has, so "never instrumented" and "ran and found none" cannot
+  render alike; and a percentile under a sample floor is null with its sample
+  count beside it, because a p95 over four calls names one sample and dresses
+  it as a distribution. The first tile failed that in the other direction,
+  reading "no telemetry" over four real measurements, which is why the absent
+  note is a parameter and not one string. The topology draws declared
+  architecture and says so on screen (`0 derived from the record`): an edge
+  asserts a handoff, only a producer recording a peer may assert one, and that
+  is the trace view's job. — enforced by `ci/console-render.sh` (tile values
+  read off the fixture at check time, the absent branch and the thin-sample
+  branch), `tests/console.rs`
+  (`a_kind_the_ledger_never_carried_is_null_and_a_kind_with_none_in_the_window_is_zero`,
+  `the_window_is_a_claim_about_now_so_an_old_ledger_reports_zero_and_not_its_totals`,
+  `a_percentile_under_the_sample_floor_is_null_and_the_sample_count_travels_with_it`,
+  `a_window_this_route_does_not_read_is_refused_rather_than_quietly_defaulted`)
+  and `tests/invariants.rs`
+  (`the_operations_topology_declares_its_edges_and_derives_none_from_an_event_kind`),
+  proved able to fail by pointing one declared edge at an event kind. Recorded
+  in `docs/proof/24.md`
 - **The page that makes the claim does not break it.** The site published to
   GitHub Pages prints "no hosted control plane, no licence check, no CDN font"
   and, as exported by the design tool, fetched React from unpkg and three

@@ -261,9 +261,11 @@ document.addEventListener('keydown', (e) => {
     }
     case 't': cycleTheme(); break;
     default: {
+      // 1 to 9 are nav order. 0 is the tenth, so adding a view at the end
+      // never renumbers the nine keys already in someone's fingers.
       const n = Number(e.key);
-      if (n >= 1 && n <= 9) {
-        const link = nav.querySelectorAll('a')[n - 1];
+      if (e.key.length === 1 && n >= 0 && n <= 9) {
+        const link = nav.querySelectorAll('a')[n === 0 ? 9 : n - 1];
         if (link) location.hash = link.getAttribute('href');
       }
     }
