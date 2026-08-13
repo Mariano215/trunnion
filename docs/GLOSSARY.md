@@ -22,7 +22,9 @@ questions you might be trying to answer.
    liveness.
 6. [Understanding the score](#understanding-the-score) is the conformance
    scorer and the twelve numbers.
-7. [Declared, not enforced](#declared-not-enforced) is the terms you will meet
+7. [Understanding the deliverable](#understanding-the-deliverable) is what an
+   audit hands somebody: findings, proofs and refusals.
+8. [Declared, not enforced](#declared-not-enforced) is the terms you will meet
    in these docs that no code implements yet. Read it before you quote one.
 
 Use your browser's find function if you already know the word you want.
@@ -73,6 +75,19 @@ the thing nobody builds. Taken from Böckeler's taxonomy, credited in
 `<cause>. Fix: <fix>`. The fix must name an action, because the reader is
 usually an agent, not a person. `src/lib.rs`. The console returns the same
 shape as JSON on an API error.
+
+**Assay.** The companion repository, `Mariano215/assay`. An assay is what a lab
+does to a metal sample to determine what is actually in it, and the lab issues a
+certificate saying so. This one does that to a repository: an agent reads one
+full of planted defects under a real harness, and the run ends in a report a
+stranger can check. It is the proving workload `docs/PLAN.md` named on day one.
+Nothing in this repository's gate runs it, which is the `ci/assay-ladder-pinned`
+marker in `CLAUDE.md`.
+
+**Ladder.** Assay's six stages. Each runs the same audit with one control more
+than the last, so the conformance number moves for a reason a reader can point
+at rather than because a profile was renamed. Its `run.sh` stops rather than
+printing a table that has stopped being true.
 
 ---
 
@@ -129,8 +144,12 @@ review (`docs/proof/01.md`).
 **Inclusion proof.** The sibling hashes that let someone recompute the root
 from one envelope alone, proving that event is in the log at that size. Produce
 one with `trunnion ledger prove <dir> <index>`, check it with
-`trunnion ledger verify-inclusion <bundle.json> <pubkey>`. The bundle is about
-1.7 KB and the check needs no server and no network.
+`trunnion ledger verify-inclusion <bundle.json> <pubkey> [subject.json]`. The
+bundle is about 1.7 KB and the check needs no server and no network. Pass the
+subject: without it the check says an envelope was on the log at that position
+and says nothing about what that envelope said, which on a findings report is
+the whole question. A report ships the subject beside every bundle for exactly
+this reason (`docs/proof/25.md`).
 
 **Consistency proof.** The hashes that prove an older signed head is a prefix
 of a newer tree, so history was appended to and not rewritten. Produce one with
@@ -560,6 +579,45 @@ this does not recurse.
 **Self-score.** The twelve numbers in `README.md`, produced by running
 `trunnion score` over a ledger that exercised the layers. It sits at overall 3
 because that is the minimum, and the minimum is the honest figure.
+
+---
+
+## Understanding the deliverable
+
+`src/report.rs`, written by `trunnion report`, proved in `docs/proof/25.md`.
+
+**Finding.** A claim an agent made about the repository it read. It is not a
+check result: nothing about a finding says a control ran, which is why nothing
+in `config/scoring.json` reads one. A level that counted claims would pay for
+volume.
+
+**`audit.finding`.** The event kind a finding is written as, which makes the
+claim a ledger leaf and therefore provable. A finding kept beside the log could
+only ever carry proofs of its evidence, while the sentence a reader acts on
+stayed text the sender can edit after signing. Deliberately not a
+`sensor.verdict`: that kind means a check with a fix and negative controls ran,
+and reusing it would have `trunnion score` credit primitive 10 for prose.
+
+**Report.** What `trunnion report` writes from a sealed ledger: the findings,
+and for each one an inclusion bundle for the claim itself, for the read it rests
+on and for the model call that produced it, beside the public key those bundles
+check against. The recipient refutes it with the binary alone. The document
+states above the findings that a proof shows what was read, asked and unchanged,
+and never that the finding is true.
+
+**Proof bundle and its subject.** The two files a report ships per proven event:
+`<name>.json`, the inclusion proof, and `<name>.subject.json`, the subject it
+covers. Both travel, because a proof checked without its subject establishes
+that some envelope sat at that position and nothing about what it said. See
+**Subject** above for the ledger sense of the word; this is the same object,
+shipped as a file.
+
+**Refusal.** A read the policy stopped. A report's scope list is built only from
+reads that came back `ok`, because a denied path appearing under "files read"
+would say the audit saw what it was stopped from seeing. A finding naming a file
+the run never read is refused outright: a small model reading a README once
+reported a secret in a source file it had never been shown, and the claim's own
+evidence does not reach it.
 
 ---
 

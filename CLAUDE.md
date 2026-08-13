@@ -676,9 +676,12 @@ indistinguishable from a use and the count would be wrong by one.
   recorded in `docs/proof/25.md`. The workload that produces one lives in
   `Mariano215/assay`, whose driver runs the same audit six times adding one
   control per stage and stops rather than printing a table that has stopped
-  being true. Nothing in this repository's gate runs that ladder, and the assay
-  CI names a branch rather than a commit, so its table is a claim about
-  whatever main is that day. `[UNENFORCED]` `ci/assay-ladder-pinned`
+  being true. That CI pins the trunnion revision it runs against as a commit
+  sha, so its table is a claim about a revision somebody can check out, and a
+  weekly cron is what finds a pin that has rotted. Nothing in this repository's
+  gate runs that ladder, so a change here that breaks the workload is found by
+  the other repository's schedule rather than by this one's push.
+  `[UNENFORCED]` `ci/assay-ladder-pinned`
 - **A harness can pass the gate it ships.** A template whose sensor reads a
   review record ships that record, and every instruction pack it ships has a
   row in it, or `template validate` refuses the bundle. Neither held for nine
