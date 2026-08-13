@@ -279,6 +279,14 @@ The bundle is 1673 bytes: one envelope, its index, a four-element proof and
 one signed head. That is the whole evidence package for "this decision was on
 the log, in this position, at this size."
 
+That last clause is the limit of a two-argument check, and it is the right
+claim here because the entry being proved is a decision the log already
+describes. Where the entry carries a sentence somebody acts on, pass the
+subject too, `verify-inclusion <bundle.json> <pubkey> <subject.json>`, or the
+check establishes that an envelope sat at that position and nothing about what
+it said. `trunnion report` ships the subject beside every bundle for that
+reason; see `docs/proof/25.md`.
+
 ### What a tampered log looks like
 
 Copy the ledger, change one character of one timestamp, and verify again:
