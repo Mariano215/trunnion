@@ -5,6 +5,7 @@
 //! policy under test.
 
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use trunnion::broker::{BrokerRun, ToolDef};
@@ -1454,6 +1455,85 @@ fn a_template_carrying_a_key_header_without_the_exemption_is_refused() {
             .status
             .success(),
         "a template with no private key header anywhere must not be made to carry a scanner exemption for one"
+    );
+}
+
+/// A lifecycle sensor gates a pack against a review record. The record has to
+/// travel with it and has to cover the packs that shipped, or the control
+/// fails on the first run of every harness for a reason the operator did not
+/// cause, and the usual answer to that is to switch the sensor off. Both
+/// halves were broken: the record was in the template and never in the copy
+/// list, and the row it carried named a hash the template's own pack had
+/// stopped having.
+#[test]
+fn a_fresh_harness_can_pass_the_lifecycle_gate_it_ships() {
+    let dir = workdir("template-reviews");
+    let harness = dir.join("h");
+    init_harness(&harness);
+
+    let reviews = harness.join("config/instruction-reviews.jsonl");
+    assert!(
+        reviews.is_file(),
+        "the harness ships the instruction-lifecycle sensor, so it ships the record that sensor greps"
+    );
+    let text = fs::read_to_string(&reviews).unwrap();
+    for pack in ["instructions/pack.md", "instructions/audit-pack.md"] {
+        let path = harness.join(pack);
+        assert!(path.is_file(), "{pack} did not travel with the harness");
+        let hash = hex::encode(Sha256::digest(fs::read(&path).unwrap()));
+        assert!(
+            text.contains(&hash),
+            "{pack} hashes to {hash} and no row covers it, so the sensor this harness ships fails on the pack this harness ships"
+        );
+    }
+}
+
+/// The rule is checked where the bundle is assembled, so a template cannot
+/// ship a gate its own contents fail. Proved able to fail by editing a pack
+/// without reviewing it, which is exactly the drift that produced the defect.
+#[test]
+fn a_template_whose_pack_is_unreviewed_is_refused() {
+    let dir = workdir("template-unreviewed");
+
+    let edited = dir.join("edited");
+    copy_tree(&repo_path("templates/laptop"), &edited);
+    let pack = edited.join("instructions/audit-pack.md");
+    let mut text = fs::read_to_string(&pack).unwrap();
+    text.push_str("\nan edit nobody reviewed\n");
+    fs::write(&pack, text).unwrap();
+
+    let out = template_cmd(&["validate", edited.to_str().unwrap()]);
+    assert!(
+        !out.status.success(),
+        "a pack whose hash no row covers must be refused; shipping it hands the operator a sensor that fails on arrival"
+    );
+    let text = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        text.contains("not reviewed") && text.contains("instruction-reviews.jsonl"),
+        "the refusal names the unreviewed pack and the record to append to: {text}"
+    );
+
+    let stripped = dir.join("stripped");
+    copy_tree(&repo_path("templates/laptop"), &stripped);
+    fs::remove_file(stripped.join("config/instruction-reviews.jsonl")).unwrap();
+    assert!(
+        !template_cmd(&["validate", stripped.to_str().unwrap()])
+            .status
+            .success(),
+        "a template carrying the sensor and not the record it reads must be refused rather than initialised"
+    );
+
+    // The requirement follows the sensor, not the filename: a template with no
+    // sensor reading the record is not made to carry one.
+    let plain = dir.join("plain");
+    copy_tree(&repo_path("templates/laptop"), &plain);
+    fs::remove_file(plain.join("config/instruction-reviews.jsonl")).unwrap();
+    fs::remove_file(plain.join("config/sensors/instruction-lifecycle.json")).unwrap();
+    assert!(
+        template_cmd(&["validate", plain.to_str().unwrap()])
+            .status
+            .success(),
+        "nothing here reads a review record, so requiring one would be a rule with no control behind it"
     );
 }
 

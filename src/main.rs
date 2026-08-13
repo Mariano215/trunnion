@@ -29,7 +29,7 @@ const USAGE: &str = "usage:
   trunnion ledger append <dir>                       (NewEvent JSON on stdin)
   trunnion ledger verify <dir>
   trunnion ledger prove <dir> <index>
-  trunnion ledger verify-inclusion <bundle.json> <pubkey-file>
+  trunnion ledger verify-inclusion <bundle.json> <pubkey-file> [subject.json]
   trunnion ledger consistency <dir> <m>
   trunnion ledger verify-consistency <bundle.json> <pubkey-file>
   trunnion ledger anchor <dir> <anchor-file>          (outside <dir>)
@@ -42,6 +42,7 @@ const USAGE: &str = "usage:
   trunnion broker register <ledger-dir> <tool-def.json>
   trunnion broker call <ledger-dir> <tool> <target>
   trunnion audit <ledger-dir> <providers.json> <provider> <file>
+  trunnion report <ledger-dir> <out-dir>
   trunnion sensor live <sensor.json>...
   trunnion sensor gate <ledger-dir> <sensor.json> <artifact>
   trunnion sensor repair <ledger-dir> <sensor.json> <artifact> <providers.json> <provider>
@@ -188,27 +189,10 @@ fn run() -> Result<i32, Fault> {
             Ok(0)
         }
         ["ledger", "verify-inclusion", bundle_path, key_path] => {
-            let bundle_text = read_file(bundle_path)?;
-            let pub_key = read_file(key_path)?;
-            let bundle: InclusionBundle = serde_json::from_str(&bundle_text).map_err(|e| {
-                Fault::new(
-                    format!("{bundle_path} does not parse as an inclusion bundle: {e}"),
-                    "regenerate it with trunnion ledger prove <dir> <index>",
-                )
-            })?;
-            match ledger::verify_bundle(&bundle, &pub_key) {
-                Ok(()) => {
-                    println!(
-                        "inclusion verified: entry {} (id {}) under signed head size {}",
-                        bundle.index, bundle.envelope.id, bundle.head.size
-                    );
-                    Ok(0)
-                }
-                Err(fault) => {
-                    println!("{fault}");
-                    Ok(1)
-                }
-            }
+            verify_inclusion(bundle_path, key_path, None)
+        }
+        ["ledger", "verify-inclusion", bundle_path, key_path, subject_path] => {
+            verify_inclusion(bundle_path, key_path, Some(subject_path))
         }
         ["ledger", "consistency", dir, m] => {
             let m = parse_index(m)?;
@@ -397,6 +381,17 @@ fn run() -> Result<i32, Fault> {
         }
         ["audit", ledger_dir, providers_path, provider_name, file] => {
             audit(ledger_dir, providers_path, provider_name, file)
+        }
+        ["report", ledger_dir, out_dir] => {
+            let out = trunnion::report::write(Path::new(ledger_dir), Path::new(out_dir))?;
+            println!(
+                "wrote {}/report.md: {} finding(s), {} inclusion bundle(s), {} refusal(s) recorded",
+                out_dir, out.findings, out.bundles, out.refusals
+            );
+            println!(
+                "check one without this ledger: trunnion ledger verify-inclusion {out_dir}/proofs/<name>.json {out_dir}/ledger.pub {out_dir}/proofs/<name>.subject.json"
+            );
+            Ok(0)
         }
         ["orchestrate", "step", ledger_dir, capability, sensor_path, artifact] => {
             orchestrate_step(ledger_dir, capability, sensor_path, artifact, None)
@@ -590,6 +585,119 @@ fn drift_scan(ledger_dir: &str, policy_path: &str) -> Result<i32, Fault> {
 /// model asks to run comes back through the broker. This is the shape the
 /// prompt-injection proof needs, because the injection has to actually
 /// reach a model for the denial to mean anything.
+/// Check an inclusion bundle, and with a subject file, check that the content
+/// a reader is holding is the content the proven entry committed to.
+///
+/// Without that second half the command answers a narrower question than the
+/// one a recipient is asking. A bundle carries the envelope, and an envelope
+/// carries `subject_hash` rather than the subject itself, so `verify-inclusion
+/// bundle key` proves an entry was in the log and says nothing about whether
+/// the sentence printed beside it in a report is that entry's content. A
+/// report that told a reader to run it and treat the result as checking the
+/// finding would be pointing at a proof of the wrong thing.
+fn verify_inclusion(
+    bundle_path: &str,
+    key_path: &str,
+    subject_path: Option<&str>,
+) -> Result<i32, Fault> {
+    let bundle_text = read_file(bundle_path)?;
+    let pub_key = read_file(key_path)?;
+    let bundle: InclusionBundle = serde_json::from_str(&bundle_text).map_err(|e| {
+        Fault::new(
+            format!("{bundle_path} does not parse as an inclusion bundle: {e}"),
+            "regenerate it with trunnion ledger prove <dir> <index>",
+        )
+    })?;
+    if let Err(fault) = ledger::verify_bundle(&bundle, &pub_key) {
+        println!("{fault}");
+        return Ok(1);
+    }
+    let subject_note = match subject_path {
+        None => String::new(),
+        Some(path) => {
+            let text = read_file(path)?;
+            let subject: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+                Fault::new(
+                    format!("{path} does not parse as JSON: {e}"),
+                    "pass the subject file that travelled with the bundle, unedited",
+                )
+            })?;
+            let computed = trunnion::event::subject_hash(&subject)?;
+            if computed != bundle.envelope.subject_hash {
+                println!(
+                    "{}",
+                    Fault::new(
+                        format!(
+                            "{path} is not the content entry {} committed to: it hashes to {computed}, the entry names {}",
+                            bundle.index, bundle.envelope.subject_hash
+                        ),
+                        "the entry is genuine and this content is not what it recorded; ask the sender for the subject file as the report was written, and read nothing from this copy",
+                    )
+                );
+                return Ok(1);
+            }
+            format!(", and {path} is the content it committed to")
+        }
+    };
+    println!(
+        "inclusion verified: entry {} (id {}) under signed head size {}{subject_note}",
+        bundle.index, bundle.envelope.id, bundle.head.size
+    );
+    Ok(0)
+}
+
+/// The three classes an audit may report, from `docs/CONCEPT.md`. The set is
+/// closed in code rather than in the pack, because a pack is a request and a
+/// model may answer with anything: a class nothing here recognises is refused
+/// rather than recorded, which is how "no SAST engine, three classes" stays a
+/// property of the system instead of a promise in a document.
+const FINDING_CLASSES: [&str; 3] = ["secret", "dependency.provenance", "authz.boundary"];
+
+/// One `FINDING: class=<c> path=<p> line=<n> claim=<sentence>` line. Keys are
+/// located rather than assumed in order, and each value runs to the next key,
+/// so a reordered line parses and a missing key is named.
+fn parse_finding(spec: &str) -> Result<(String, String, Option<u64>, String), Fault> {
+    let keys = ["class=", "path=", "line=", "claim="];
+    let mut found: Vec<(usize, usize, &str)> = Vec::new();
+    for key in keys {
+        let at = spec.find(key).ok_or_else(|| {
+            Fault::new(
+                format!("a FINDING line has no {key}: {spec}"),
+                "report findings as FINDING: class=<class> path=<path> line=<n> claim=<one sentence>; a line missing a field is not recorded",
+            )
+        })?;
+        found.push((at, key.len(), key));
+    }
+    found.sort();
+    let value = |key: &str| -> String {
+        let at = found.iter().position(|(_, _, k)| *k == key).unwrap_or(0);
+        let (start, len, _) = found[at];
+        let end = found.get(at + 1).map_or(spec.len(), |(next, _, _)| *next);
+        spec[start + len..end].trim().to_string()
+    };
+    let class = value("class=");
+    let path = value("path=");
+    let line = value("line=");
+    let claim = value("claim=");
+
+    if !FINDING_CLASSES.contains(&class.as_str()) {
+        return Err(Fault::new(
+            format!("{class} is not a finding class this audit reports"),
+            format!(
+                "the classes are {}; a finding outside them is out of scope and is not recorded, however real it is",
+                FINDING_CLASSES.join(", ")
+            ),
+        ));
+    }
+    if claim.is_empty() {
+        return Err(Fault::new(
+            format!("a {class} finding carries no claim: {spec}"),
+            "a finding with no sentence says nothing a reader can check; report the claim or report no finding",
+        ));
+    }
+    Ok((class, path, line.parse::<u64>().ok(), claim))
+}
+
 fn audit(
     ledger_dir: &str,
     providers_path: &str,
@@ -624,6 +732,61 @@ fn audit(
     )?;
     let reply = answer.content.trim().to_string();
     println!("[model] {reply}");
+
+    // Every finding cites the read it rests on and the call that produced it,
+    // by event id, so a reader joins them on the record rather than on two
+    // events sitting next to each other in the log. The path recorded is the
+    // file the broker read and never the one the model typed: this run read
+    // one file, so a finding naming another is a claim its own evidence does
+    // not reach, and is refused rather than recorded with a path nothing
+    // supports.
+    let mut recorded = 0usize;
+    let mut refused = 0usize;
+    for spec in reply
+        .lines()
+        .filter_map(|l| l.trim().strip_prefix("FINDING:"))
+    {
+        match parse_finding(spec.trim()) {
+            Ok((class, claimed_path, line, claim)) => {
+                // A model shown an absolute path routinely reports the tail of
+                // it, which is the same file written shorter. A path that is
+                // not a tail of the one read is a different file, and a claim
+                // about a file this run never opened rests on nothing: that is
+                // the case worth refusing, and it happens (a run reading a
+                // README has reported a secret in a source file it never saw).
+                let names_the_file_read = claimed_path.is_empty()
+                    || file == claimed_path
+                    || file.ends_with(&format!("/{claimed_path}"));
+                if !names_the_file_read {
+                    eprintln!(
+                        "{}",
+                        Fault::new(
+                            format!("a finding names {claimed_path}, which this run did not read"),
+                            format!("this run read {file}; audit that file to report on it, because a finding whose evidence is a read of something else is unsupported"),
+                        )
+                    );
+                    refused += 1;
+                    continue;
+                }
+                recorded += 1;
+                let id = run.finding(json!({
+                    "class": class,
+                    "path": file,
+                    "line": line,
+                    "claim": claim,
+                    "asserted_by": format!("{}/{}", provider.name, provider.model),
+                    "evidence": [doc.event_id.clone(), answer.event_id.clone()],
+                    "status": "asserted",
+                }))?;
+                println!("[broker] finding recorded as {id}: {class}");
+            }
+            Err(fault) => {
+                eprintln!("{fault}");
+                refused += 1;
+            }
+        }
+    }
+    println!("[broker] {recorded} finding(s) recorded, {refused} refused");
 
     // The agent's proposed action, taken at face value. The point of the
     // exercise is that the harness, not the model's judgement, is what
@@ -983,6 +1146,34 @@ fn sensor_live(sensor_paths: &[&str]) -> Result<i32, Fault> {
     Ok(if broken == 0 { 0 } else { 1 })
 }
 
+/// The file a lifecycle sensor greps for a pack's hash. Named once, because
+/// the template validator both requires it and copies it by this path.
+const REVIEWS_REL: &str = "config/instruction-reviews.jsonl";
+
+/// Every entry in a directory, sorted, erroring rather than skipping an entry
+/// it cannot read: a validator that silently drops a file it could not list
+/// would let that file fail to travel and report the bundle valid.
+fn read_dir_sorted(dir: &Path) -> Result<Vec<std::path::PathBuf>, Fault> {
+    let mut out = Vec::new();
+    let entries = fs::read_dir(dir).map_err(|e| {
+        Fault::new(
+            format!("cannot list {}: {e}", dir.display()),
+            "check the directory is readable",
+        )
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|e| {
+            Fault::new(
+                format!("cannot read an entry in {}: {e}", dir.display()),
+                "check the directory is readable",
+            )
+        })?;
+        out.push(entry.path());
+    }
+    out.sort();
+    Ok(out)
+}
+
 /// A harness template is a bundle of policy, providers, scoring rules, an
 /// instruction pack, sensors and signing keys that must validate as a whole:
 /// every part loads through the same validator the running system uses, so a
@@ -1018,10 +1209,29 @@ fn template_validate(template_dir: &str) -> Result<Vec<std::path::PathBuf>, Faul
             "write the instruction pack this profile runs under; its hash is pinned on every event",
         ));
     }
-    files.push(pack_path);
+    files.push(pack_path.clone());
+
+    // A harness may carry more than one pack, because a workload runs under
+    // its own instructions: `trunnion audit` opens its run against
+    // instructions/audit-pack.md. Every pack ships, and every pack is held to
+    // the review rule below, since a pack that travels unreviewed is the
+    // lifecycle gap the sensor exists to close.
+    let mut packs = vec![pack_path];
+    let instructions_dir = dir.join("instructions");
+    let mut extra: Vec<std::path::PathBuf> = read_dir_sorted(&instructions_dir)?
+        .into_iter()
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("md"))
+        .filter(|p| !packs.contains(p))
+        .collect();
+    extra.sort();
+    for path in extra {
+        files.push(path.clone());
+        packs.push(path);
+    }
 
     let mut sensor_count = 0usize;
     let mut sensor_carries_key_header = false;
+    let mut sensor_reads_reviews = false;
     let sensors_dir = dir.join("config/sensors");
     if sensors_dir.is_dir() {
         let entries = fs::read_dir(&sensors_dir).map_err(|e| {
@@ -1042,13 +1252,16 @@ fn template_validate(template_dir: &str) -> Result<Vec<std::path::PathBuf>, Faul
             if path.extension().and_then(|e| e.to_str()) == Some("json") {
                 Sensor::load(&path)?;
                 sensor_count += 1;
+                let text = fs::read_to_string(&path).unwrap_or_default();
                 // A sensor that catches private keys has to hold one to prove
                 // it can fail. Which is why the bundle below is required.
-                if fs::read_to_string(&path)
-                    .map(|text| text.contains("PRIVATE KEY-----"))
-                    .unwrap_or(false)
-                {
+                if text.contains("PRIVATE KEY-----") {
                     sensor_carries_key_header = true;
+                }
+                // A sensor that gates a document against a review record reads
+                // that record at check time, so the record travels with it.
+                if text.contains(REVIEWS_REL) {
+                    sensor_reads_reviews = true;
                 }
                 files.push(path);
             }
@@ -1080,6 +1293,46 @@ fn template_validate(template_dir: &str) -> Result<Vec<std::path::PathBuf>, Faul
             ));
         }
         files.push(path);
+    }
+
+    // A sensor that gates a pack against a review record is only a control
+    // while the record travels with it and covers the packs that shipped.
+    // Neither held: the record was in the template and never in the copy list,
+    // so every harness initialised before this carried the sensor without the
+    // file its check greps, and the row it did carry named a pack hash the
+    // template had stopped having. Both failures look identical from outside,
+    // a sensor that fails on a fresh harness for reasons the operator did not
+    // cause, and the usual answer to that is to switch the sensor off.
+    if sensor_reads_reviews {
+        let reviews_path = dir.join(REVIEWS_REL);
+        let reviews = fs::read_to_string(&reviews_path).map_err(|e| {
+            Fault::new(
+                format!("{} has no {REVIEWS_REL}: {e}", dir.display()),
+                "a sensor here gates the instruction pack against a review record, so add that record; without it the sensor fails on the first run of every harness this template writes",
+            )
+        })?;
+        for pack in &packs {
+            let bytes = fs::read(pack).map_err(|e| {
+                Fault::new(
+                    format!("cannot read {}: {e}", pack.display()),
+                    "check the instruction pack is readable",
+                )
+            })?;
+            let hash = hex::encode(Sha256::digest(&bytes));
+            if !reviews.contains(&hash) {
+                return Err(Fault::new(
+                    format!(
+                        "{} is not reviewed: {REVIEWS_REL} carries no row for its hash {hash}",
+                        pack.display()
+                    ),
+                    format!(
+                        "review the pack, then append a row to {}/{REVIEWS_REL} with that hash, a reviewer and a date: {{\"pack_hash\":\"{hash}\",\"reviewer\":\"you@example.com\",\"date\":\"YYYY-MM-DD\",\"note\":\"why this content is what the harness runs under\"}}",
+                        dir.display()
+                    ),
+                ));
+            }
+        }
+        files.push(reviews_path);
     }
 
     let keys_path = dir.join("config/skill-keys.json");

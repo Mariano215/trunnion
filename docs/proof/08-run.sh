@@ -3,8 +3,11 @@
 # the layers, then run gantry score over it. The numbers come from telemetry,
 # not from the profile name, so low numbers cannot be dressed up. Run from the
 # repository root after cargo build. The one model call uses the local ollama
-# endpoint; if it is down, primitives 2 and 3 score N/A, which is the honest
-# result and the proof still runs.
+# endpoint. If it is down the call still appends a model.call carrying its
+# prompt hash and window before returning the Fault, so primitives 2 and 3
+# score the same either way; what is lost is the reply, the exit status and
+# the seal, not the telemetry. This comment claimed N/A for eight slices and
+# was wrong.
 set -e
 BIN=./target/debug/trunnion
 WORK=$(mktemp -d /tmp/gantry-proof08.XXXXXX)
@@ -15,7 +18,7 @@ echo "== build one self-audit ledger across the layers =="
 
 # Gateway: one real model call (primitives 2, 3, 11). Tolerated if offline.
 $BIN run config/providers.json local $L 2>/dev/null && echo "gateway leg: ok" \
-  || echo "gateway leg: skipped (no local model); primitives 2 and 3 will score N/A"
+  || echo "gateway leg: endpoint unreachable; the call is on the ledger and primitives 2 and 3 still score from it"
 
 # Broker: a denial (12), a registration rejection (4), an allowed tainted call (4, 5, 11).
 $BIN broker call $L Bash "rm -rf /" 2>/dev/null || true

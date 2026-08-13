@@ -235,11 +235,15 @@ impl RunCore {
         self.ledger.events_with_subjects()
     }
 
-    pub fn append(&mut self, kind: &str, subject: Value) -> Result<(), Fault> {
+    /// Appends one event and returns its id, so a later event can cite it
+    /// rather than a reader inferring the link from adjacency. Callers with
+    /// nothing to cite discard the id.
+    pub fn append(&mut self, kind: &str, subject: Value) -> Result<String, Fault> {
         let seq = self.next_seq;
         self.next_seq += 1;
+        let id = format!("{}-{seq}", self.run_id);
         let mut ev = NewEvent {
-            id: format!("{}-{seq}", self.run_id),
+            id: id.clone(),
             run_id: self.run_id.clone(),
             parent_id: None,
             seq,
@@ -255,7 +259,7 @@ impl RunCore {
             ev.attestation = Some(signer.attest(&ev)?);
         }
         self.ledger.append(ev)?;
-        Ok(())
+        Ok(id)
     }
 
     /// Appends `run.seal` and returns the head covering it. Consumes the run:

@@ -650,6 +650,51 @@ indistinguishable from a use and the count would be wrong by one.
   `an_id_that_would_leave_the_cache_is_refused`), the first proved able to fail
   by removing both halves of the guard and watching git absorb the option and
   read the destination as the repository
+- **A finding is a claim, and a report says what its proof is not.** An
+  `audit.finding` is a ledger leaf so `trunnion ledger prove` can cover the
+  claim itself: a finding kept beside the log could only ever carry proofs of
+  its evidence while the sentence a reader acts on stayed text the sender can
+  edit after signing. It is not a `sensor.verdict`, which means a check with a
+  fix and negative controls ran, and reusing that kind would have the scorer
+  credit primitive 10 for prose. Nothing scores from it at all: a claim is not
+  a control, and a level counting claims would pay for volume. `trunnion
+  report` writes a bundle for the finding, for the read it rests on and for the
+  model call that produced it, beside the key they check against, so the
+  recipient refutes it with the binary alone. The document states above the
+  findings that a proof shows what was read, asked and unchanged and never that
+  the finding is true, and its scope list is built from reads that came back
+  `ok`, because a path the policy denied appearing under "files read" would say
+  the audit saw what it was stopped from seeing. A finding naming a file the
+  run did not read is refused: a 0.6b model reading a README reported a secret
+  in a source file it had never been shown, and the claim's own evidence does
+  not reach it. — enforced by `src/report.rs`, `src/main.rs` (`parse_finding`,
+  `audit`) and `tests/report.rs`
+  (`a_finding_travels_with_a_bundle_that_verifies_against_the_key_beside_it`,
+  `a_claim_edited_after_the_fact_fails_rather_than_reading_as_verified`,
+  `a_refused_read_is_a_refusal_and_never_a_file_this_audit_read`,
+  `a_finding_citing_an_event_from_another_log_is_refused_rather_than_half_proved`);
+  recorded in `docs/proof/25.md`. The workload that produces one lives in
+  `Mariano215/assay`, whose driver runs the same audit six times adding one
+  control per stage and stops rather than printing a table that has stopped
+  being true. Nothing in this repository's gate runs that ladder, and the assay
+  CI names a branch rather than a commit, so its table is a claim about
+  whatever main is that day. `[UNENFORCED]` `ci/assay-ladder-pinned`
+- **A harness can pass the gate it ships.** A template whose sensor reads a
+  review record ships that record, and every instruction pack it ships has a
+  row in it, or `template validate` refuses the bundle. Neither held for nine
+  slices: `config/instruction-reviews.jsonl` was in `templates/laptop` and
+  never in the copy list, so `template init` wrote the `instruction-lifecycle`
+  sensor without the file its check greps, and the row it did carry named a
+  hash the template's own pack had stopped having. The control therefore failed
+  on the first run of every harness anyone initialised, for a reason the
+  operator did not cause, and the usual answer to that is to switch the sensor
+  off. The requirement follows the sensor and not the filename: a template with
+  nothing reading a review record is not made to carry one. — enforced by
+  `src/main.rs` (`template_validate`) and `tests/broker.rs`
+  (`a_fresh_harness_can_pass_the_lifecycle_gate_it_ships`,
+  `a_template_whose_pack_is_unreviewed_is_refused`), proved able to fail by
+  editing a pack without reviewing it and by removing the record while keeping
+  the sensor
 
 ## Code standards
 

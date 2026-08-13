@@ -713,6 +713,7 @@ does not depend on `PATH` order.
 | `docs/POLICY-SCHEMA.md` | How to write policy: rules, capabilities, gates, rollback handles |
 | `docs/EVENT-SCHEMA.md` | Every event type on the ledger and its fields |
 | `docs/proof/` | One adversarial proof per slice. Each was produced by running the thing, not by reasoning about it |
+| [assay](https://github.com/Mariano215/assay) | The worked example: a sandboxed repository audit run six times, adding one control per stage, ending in a signed findings report a recipient checks with the binary alone |
 | `docs/DEPENDENCIES.md` | Every dependency and why it is here. CI fails on an undocumented one |
 | `CLAUDE.md` | The invariants an agent working on this repo must hold, each naming what enforces it |
 

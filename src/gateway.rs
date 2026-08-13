@@ -322,7 +322,7 @@ pub fn call_on(
                 if let Some(cost) = cost_usd {
                     *cost_total_usd += cost;
                 }
-                core.append(
+                let event_id = core.append(
                     "model.call",
                     json!({
                         "provider": provider.name,
@@ -344,6 +344,7 @@ pub fn call_on(
                     prompt_tokens,
                     completion_tokens,
                     latency_ms,
+                    event_id,
                 })
             }
             Err(err) => {
@@ -398,6 +399,9 @@ pub struct CallResult {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub latency_ms: u64,
+    /// The id of the `model.call` this reply came off, so an event resting on
+    /// the reply cites the call rather than the reader inferring it.
+    pub event_id: String,
 }
 
 /// The key is a secret; a provider's error body (proxy debug pages echo

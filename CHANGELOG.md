@@ -11,6 +11,28 @@ the diff to find out whether it mattered.
 
 ### Added
 
+- **`trunnion report`: a deliverable the recipient can refuse.** The proving
+  workload named in `docs/PLAN.md` on day one and unbuilt for twenty-four
+  slices. A new `audit.finding` event kind makes a claim a ledger leaf, and
+  `trunnion report <ledger> <out>` writes a document where every finding
+  travels with an inclusion bundle for the claim, for the read it rests on and
+  for the model call that produced it, beside the key they check against.
+  Holding only that directory and the binary, a third party runs
+  `trunnion ledger verify-inclusion proofs/f-1.finding.json ledger.pub
+  proofs/f-1.finding.subject.json` with no log, no config and no network. The document states above the findings that a
+  proof shows what was read, asked and unchanged, and never that the finding is
+  true. No score moves: nothing is credited for making a claim, because a level
+  that counted claims would pay for volume. The workload that produces one is
+  [assay](https://github.com/Mariano215/assay), which runs the same audit six
+  times adding one control per stage. See `docs/proof/25.md`.
+- **`trunnion ledger verify-inclusion` takes the subject as a third argument.**
+  An envelope carries `subject_hash` and not the subject, so the two-argument
+  form proves an entry was in the log and says nothing about whether the
+  content a reader is holding is that entry. With a subject file it recomputes
+  the hash and refuses a mismatch, naming the two states apart: the entry is
+  genuine and this copy of its content is not. `trunnion report` now ships the
+  subject beside every bundle and prints the three-argument form, because until
+  it did, "check it" in a report pointed at a proof of the wrong thing.
 - **An operations view: the whole harness on one screen.** Nine views each
   answered one question and none answered "is this healthy right now". The new
   tenth view carries counts for the window, tool-call latency, a live event
@@ -43,6 +65,21 @@ the diff to find out whether it mattered.
 
 ### Fixed
 
+- **The instruction-lifecycle sensor could not pass on any harness anyone had
+  ever initialised.** `config/instruction-reviews.jsonl` sat in
+  `templates/laptop` and never in the copy list `template validate` returns, so
+  `template init` wrote the sensor and not the file its check greps; the row it
+  did carry named a pack hash the template had stopped having. Primitive 01
+  therefore could not reach 4 on a fresh harness, and the control failed on its
+  first run for a reason the operator did not cause. `template validate` now
+  refuses a bundle whose sensor reads a review record it does not ship, and one
+  whose packs are not covered by a row.
+- **`docs/proof/08-run.sh` said primitives 2 and 3 score N/A with the model
+  endpoint down.** They score 3 and 2. The gateway's error branch appends a
+  `model.call` with its prompt hash and window before returning the Fault, so
+  what an unreachable endpoint costs is the reply, the exit status and the
+  seal, never the telemetry. The comment had been wrong since slice 08 and is
+  the kind of instruction that looks like coverage.
 - **The laptop template declared an instruction-pack hash that was not its
   own.** `templates/laptop/config/policy.json` pinned this repository's
   `instructions/pack.md` rather than the pack the template ships, and nothing

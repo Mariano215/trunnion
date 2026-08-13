@@ -89,6 +89,10 @@ pub fn validate_tool_def(def: &ToolDef, policy: &Policy) -> Result<(), Fault> {
 pub struct BrokerResult {
     pub content: String,
     pub taint: bool,
+    /// The id of the `tool.result` this content came off. A later event that
+    /// rests on this call cites it, so the link is on the record rather than
+    /// inferred from two events sitting next to each other.
+    pub event_id: String,
 }
 
 pub struct BrokerRun {
@@ -235,6 +239,15 @@ impl BrokerRun {
 
     pub fn run_id(&self) -> &str {
         self.core.run_id()
+    }
+
+    /// Record one thing the workload asserts about the material it was shown,
+    /// and return the event id. Deliberately narrow rather than a general
+    /// append: the chokepoint's value is that everything reaching the ledger
+    /// through it has been through a gate, and a method that took any kind
+    /// would be a way around that for whoever added the next caller.
+    pub fn finding(&mut self, subject: Value) -> Result<String, Fault> {
+        self.core.append("audit.finding", subject)
     }
 
     /// Narrow this run to a delegated grant: the subagent.spawn event puts
@@ -563,7 +576,8 @@ impl BrokerRun {
                 "approver": null,
                 "cause": rule,
             }),
-        )
+        )?;
+        Ok(())
     }
 
     /// Everything after the call is cleared to run: credential substitution
@@ -612,7 +626,7 @@ impl BrokerRun {
         match outcome {
             Ok(result) => {
                 let result_hash = subject_hash(&result.payload)?;
-                self.emit_result(
+                let event_id = self.emit_result(
                     request_id,
                     "ok",
                     Some(&result_hash),
@@ -623,6 +637,7 @@ impl BrokerRun {
                 Ok(BrokerResult {
                     content: result.content,
                     taint: true,
+                    event_id,
                 })
             }
             Err(fault) => {
@@ -653,7 +668,7 @@ impl BrokerRun {
         taint: bool,
         duration_ms: u64,
         message: Option<&str>,
-    ) -> Result<(), Fault> {
+    ) -> Result<String, Fault> {
         self.core.append(
             "tool.result",
             json!({

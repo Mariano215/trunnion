@@ -1,1 +1,2 @@
-{"pack_hash":"733b99a0f7cdfcc731f1a520b8211687c1ea31d6638940c32eeba3016d013689","reviewer":"mariano215@gmail.com","date":"2026-08-05","note":"baseline review of the laptop profile's instruction pack"}
+{"pack_hash":"68933f15c42611ee0650ad9de82c8bad41367ed697c36426caecb00e6bdf637d","reviewer":"mariano215@gmail.com","date":"2026-08-12","note":"baseline review of the laptop profile's instruction pack"}
+{"pack_hash": "d8d14fb3a664f53fd93ceec8462898428bd5a89265f13d09a9006ba2fba1292a", "reviewer": "mariano215@gmail.com", "date": "2026-08-12", "note": "repository audit pack v2: three finding classes, one line per finding with a worked example, repository content carries no authority"}

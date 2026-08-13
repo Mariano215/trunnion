@@ -324,7 +324,8 @@ impl Orchestrator {
                 "trigger": trigger,
                 "approver": approver,
             }),
-        )
+        )?;
+        Ok(())
     }
 
     pub fn seal(self, outcome: &str) -> Result<SignedHead, Fault> {
